@@ -46,8 +46,8 @@ DEFAULTS = {
         "enabled": True,
         "model": "cnclip.onnx",    # 推荐 cnclip.onnx=中文CLIP ViT-L（中文概念更准）；
                                    # model.onnx=标准 CLIP ViT-B/32（更快）
-        "prob_thr": 0.02,          # 零样本概率阈值
-        "sim_floor": 0.17,         # 余弦相似度下限
+        "prob_thr": 0.05,          # 零样本概率阈值（443 类 softmax，过低会出弱标签）
+        "sim_floor": 0.22,         # 余弦相似度下限（cnclip 基线较高，建议 0.20~0.28）
         "max_tags": 8,             # 单张图片 CLIP 标签上限
     },
     "ocr": {

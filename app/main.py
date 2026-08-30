@@ -70,8 +70,10 @@ async def login(request: Request):
 @app.get("/api/status", dependencies=[Depends(_auth)])
 async def status_light():
     """轻量状态接口：供页面高频轮询，不返回词表等大对象。"""
+    cur = model_version(config.load())
     return {"status": PIPELINE.status(), "stats": store.stats(),
-            "stale": store.stale_count(pipeline.model_version(config.load()))}
+            "stale": store.stale_count(cur),
+            "stale_pending": store.stale_pending_count(cur)}
 
 
 @app.get("/api/bootstrap", dependencies=[Depends(_auth)])
@@ -82,6 +84,7 @@ async def bootstrap():
         "status": PIPELINE.status(),
         "stats": store.stats(),
         "stale": store.stale_count(model_version(cfg)),
+        "stale_pending": store.stale_pending_count(model_version(cfg)),
         "top_tags": store.top_tags(30),
         "vocab": clip_infer.load_vocab(),
         "models": _list_models(),
@@ -157,8 +160,14 @@ async def set_config(request: Request):
 async def start_job(request: Request):
     body = await request.json()
     jtype = body.get("type")
-    if jtype not in ("incremental", "replace", "write_pending"):
-        raise HTTPException(400, "type 必须是 incremental|replace|write_pending")
+    if jtype not in ("incremental", "replace", "write_pending", "retry_failed"):
+        raise HTTPException(400, "type 必须是 incremental|replace|write_pending|retry_failed")
+    if jtype == "retry_failed":
+        # 失败项重试次数已达上限被放弃后，用这个入口复活它们
+        n = store.reset_error_retries()
+        store.log("info", f"已重置 {n} 个失败项的重试计数，开始重新扫描")
+        PIPELINE.enqueue("incremental")
+        return {"ok": True, "reset": n}
     if jtype == "replace":
         pw = str(body.get("confirm", ""))
         if pw != "REPLACE":

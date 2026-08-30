@@ -329,7 +329,7 @@ class Pipeline:
                  only=None) -> dict:
         """only: 仅运行这些引擎（单引擎补全用）；None=全部启用引擎。"""
         ext = os.path.splitext(path)[1].lower()
-        tags = []           # [(name, normalized)]
+        tags = []           # [(name, normalized, score|None)]
         ocr_text = ""
         embed = None
         engines = {}        # 各启用引擎的成功与否
@@ -348,9 +348,9 @@ class Pipeline:
                     engines["detect"] = True
                 except Exception as e:
                     store.log("error", f"视频检测失败（跳过）{path}: {e}")
-            for cls_id, _s in dets:
+            for cls_id, s in dets:
                 name, nn = yolo.labels(cls_id, lang)
-                tags.append((name, nn))
+                tags.append((name, nn, s))
             return {"status": "analyzed" if tags else "empty", "tags": tags,
                     "ocr_text": "", "embed": None, "engines": engines}
 
@@ -361,11 +361,11 @@ class Pipeline:
         if want("detect"):
             engines["detect"] = False
             try:
-                for cls_id, _s in yolo.detect(img, cfg["detect"]["model"],
-                                              cfg["detect"]["confidence"]):
+                for cls_id, s in yolo.detect(img, cfg["detect"]["model"],
+                                             cfg["detect"]["confidence"]):
                     name, nn = yolo.labels(cls_id, lang)
                     if nn not in {t[1] for t in tags}:
-                        tags.append((name, nn))
+                        tags.append((name, nn, s))
                 tags = tags[: cfg["detect"]["max_tags"]]
                 engines["detect"] = True
             except Exception as e:
@@ -384,7 +384,7 @@ class Pipeline:
                     else:
                         name, nn = zh, f"{en} {zh}".lower()
                     if nn not in {t[1] for t in tags}:
-                        tags.append((name, nn))
+                        tags.append((name, nn, score))
                 engines["clip"] = True
             except Exception as e:
                 store.log("error", f"CLIP 引擎失败（跳过该引擎）{path}: {e}")
@@ -398,7 +398,7 @@ class Pipeline:
                 for kw in kws:
                     nn = kw.lower()
                     if nn not in {t[1] for t in tags}:
-                        tags.append((prefix + kw, nn))
+                        tags.append((prefix + kw, nn, None))
                 ocr_text = ocr_infer.full_text(lines, cfg["ocr"].get("max_text_len"))
                 engines["ocr"] = True
             except Exception as e:
@@ -420,7 +420,7 @@ class Pipeline:
         row = store.query_one(
             "SELECT status, tags, ocr_text, engines FROM processed "
             "WHERE db_name=? AND unit_id=?", (db, unit_id))
-        old_tags = [(t["n"], t["nn"])
+        old_tags = [(t["n"], t["nn"], t.get("s"))
                     for t in json.loads((row and row["tags"]) or "[]")]
         old_ocr = (row and row["ocr_text"]) or ""
         merged = old_tags + [t for t in result["tags"]
@@ -460,7 +460,7 @@ class Pipeline:
             for it in batch:
                 store.mark_processed(
                     it["db"], it["unit_id"], "analyzed", model_version(cfg),
-                    [{"n": n, "nn": nn} for n, nn in it["tags"]], None, None,
+                    [{"n": n, "nn": nn, "s": s} for n, nn, s in it["tags"]], None, None,
                     owner_id=it["owner_id"])
             job.tags_written += sum(len(i["tags"]) for i in batch)
             store.log("info", f"[dry-run] 未写库 {len(batch)} 项"
@@ -486,7 +486,7 @@ class Pipeline:
                             for rid, owner, name in rows}
                 for it in items:
                     unit_rows = []
-                    for name, nn in it["tags"]:
+                    for name, nn, _s in it["tags"]:
                         key = (it["owner_id"] or 0, name)
                         if key in rows_map:
                             rid, owner, nm = rows_map[key]
@@ -498,7 +498,7 @@ class Pipeline:
                 for it in items:
                     store.mark_processed(
                         it["db"], it["unit_id"], "written", model_version(cfg),
-                        [{"n": n, "nn": nn} for n, nn in it["tags"]], None, None,
+                        [{"n": n, "nn": nn, "s": s} for n, nn, s in it["tags"]], None, None,
                         owner_id=it["owner_id"])
                 job.tags_written += sum(len(i["tags"]) for i in items)
                 reused = sum(1 for k in rows_map if k in existing)
@@ -512,7 +512,7 @@ class Pipeline:
                     store.mark_processed(
                         it["db"], it["unit_id"], "write_error",
                         model_version(cfg),
-                        [{"n": n, "nn": nn} for n, nn in it["tags"]], None, None,
+                        [{"n": n, "nn": nn, "s": s} for n, nn, s in it["tags"]], None, None,
                         owner_id=it["owner_id"])
                 job.errors += len(items)
 
@@ -531,7 +531,22 @@ class Pipeline:
             job._backup_done = True   # 避免每批都重试备份阻塞任务
 
     def _flush_pending_records(self, job: _Job, cfg: dict):
-        """扫描前先把上次遗留的"已分析未写库"记录补写完成（不重新推理）。"""
+        """扫描前先把上次遗留的"已分析未写库"记录补写完成（不重新推理）。
+
+        若待写结果是用旧模型/词表/参数分析的（model_ver 不一致），
+        则不写库——转为待重分析状态，本轮扫描自动用新模型重跑。
+        """
+        cur = model_version(cfg)
+        outdated = store.query(
+            "SELECT db_name, unit_id FROM processed "
+            "WHERE status IN ('analyzed','write_error') AND model_ver != ?", (cur,))
+        if outdated:
+            for r in outdated:
+                store.execute(
+                    "UPDATE processed SET status='error', retries=0 "
+                    "WHERE db_name=? AND unit_id=?", (r["db_name"], r["unit_id"]))
+            store.log("info", f"{len(outdated)} 条待写结果来自旧模型/词表，"
+                              f"不写入库，将自动用当前模型重新分析")
         rows = store.query(
             "SELECT db_name, unit_id, owner_id, tags FROM processed "
             "WHERE status IN ('analyzed','write_error')")
@@ -540,7 +555,8 @@ class Pipeline:
         store.log("info", f"发现 {len(rows)} 项上次遗留的待写库结果，先补写…")
         by_db = {}
         for r in rows:
-            tags = [(t["n"], t["nn"]) for t in json.loads(r["tags"] or "[]")]
+            tags = [(t["n"], t["nn"], t.get("s"))
+                    for t in json.loads(r["tags"] or "[]")]
             if not tags:
                 store.mark_processed(r["db_name"], r["unit_id"], "empty",
                                      model_version(cfg), [], None, None,
@@ -566,7 +582,8 @@ class Pipeline:
         job.phase = "write"
         by_db = {}
         for r in rows:
-            tags = [(t["n"], t["nn"]) for t in json.loads(r["tags"] or "[]")]
+            tags = [(t["n"], t["nn"], t.get("s"))
+                    for t in json.loads(r["tags"] or "[]")]
             if not tags:
                 store.mark_processed(r["db_name"], r["unit_id"], "empty",
                                      model_version(cfg), [], None, None,
@@ -588,7 +605,7 @@ class Pipeline:
                 embed=None, bump=False, owner_id=0, engines=None,
                 embed_model=None):
         store.mark_processed(db, unit_id, status, model_ver,
-                             [{"n": n, "nn": nn} for n, nn in tags],
+                             [{"n": n, "nn": nn, "s": s} for n, nn, s in tags],
                              ocr_text, rel, embed=embed, bump_retry=bump,
                              owner_id=owner_id, engines=engines,
                              embed_model=embed_model)

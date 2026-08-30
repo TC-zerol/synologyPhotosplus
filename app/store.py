@@ -246,14 +246,35 @@ def clear_relations(db_name: str, unit_ids=None):
 def stats() -> dict:
     total = query_one("SELECT COUNT(*) AS c FROM processed")["c"]
     written = query_one(
-        "SELECT COUNT(*) AS c FROM processed WHERE status IN ('written','empty')")["c"]
+        "SELECT COUNT(*) AS c FROM processed WHERE status='written'")["c"]
+    empty = query_one(
+        "SELECT COUNT(*) AS c FROM processed WHERE status='empty'")["c"]
     pending = query_one(
         "SELECT COUNT(*) AS c FROM processed WHERE status IN ('analyzed','write_error')")["c"]
     err = query_one("SELECT COUNT(*) AS c FROM processed WHERE status='error'")["c"]
+    exhausted = query_one(
+        "SELECT COUNT(*) AS c FROM processed WHERE status='error' "
+        "AND retries >= 3")["c"]
     tagged = query_one("SELECT COUNT(*) AS c FROM tag_rows")["c"]
     vecs = query_one("SELECT COUNT(*) AS c FROM embeddings")["c"]
-    return {"processed": total, "written": written, "pending_write": pending,
-            "error": err, "tag_links": tagged, "embeddings": vecs}
+    return {"processed": total, "written": written, "empty": empty,
+            "pending_write": pending, "error": err, "error_exhausted": exhausted,
+            "tag_links": tagged, "embeddings": vecs}
+
+
+def stale_pending_count(current_model_ver: str) -> int:
+    """待写结果中来自旧模型/词表的条数（会自动转重新分析，不需要用户操作）。"""
+    return query_one(
+        "SELECT COUNT(*) AS c FROM processed "
+        "WHERE status IN ('analyzed','write_error') AND model_ver != ?",
+        (current_model_ver,))["c"]
+
+
+def reset_error_retries() -> int:
+    """把失败项的重试计数清零（模型修复后让它们重新进入扫描）。"""
+    n = query_one("SELECT COUNT(*) AS c FROM processed WHERE status='error'")["c"]
+    execute("UPDATE processed SET retries=0 WHERE status='error'")
+    return n
 
 
 def stale_count(current_model_ver: str) -> int:

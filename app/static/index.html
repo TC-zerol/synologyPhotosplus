@@ -47,22 +47,23 @@
     <!-- ============ 仪表盘 ============ -->
     <section class="tab active" id="tab-dash">
       <div class="card hidden" id="stale-banner" style="margin-bottom:16px; border-color: rgba(251,191,36,.4)">
-        <b style="color:var(--warn)">⚠ 有 <span id="stale-count">0</span> 张照片是用旧模型/词表/参数分析的</b>
-        <span class="muted small">　修改识别设置、更换模型或编辑词表后，已有标签不会自动更新（增量扫描会跳过已处理照片）。
-        要按当前配置重刷，点右侧按钮：会先移除本工具写的旧标签，再全量重新分析。</span>
+        <b style="color:var(--warn)">⚠ 有 <span id="stale-count">0</span> 张已入库照片是用旧模型/词表/参数打标的</b>
+        <span class="muted small" id="stale-pending-note"></span>
+        <span class="muted small">　要按当前配置重刷这些照片，点右侧按钮：会先移除本工具写的旧标签，再全量重新分析。
+        （待写库/失败状态的旧结果无需操作，下次扫描自动按新模型重跑。）</span>
         <button class="btn" id="btn-stale-replace" style="float:right">↻ 重新分析(替换)</button>
         <div style="clear:both"></div>
       </div>
       <div class="grid stats">
         <div class="card stat">
-          <div class="stat-label">已处理媒体</div>
+          <div class="stat-label">已完成媒体</div>
           <div class="stat-value" id="st-processed">–</div>
           <div class="stat-sub" id="st-written-sub"></div>
         </div>
         <div class="card stat">
           <div class="stat-label">已写入标签</div>
           <div class="stat-value" id="st-tags">–</div>
-          <div class="stat-sub">general_tag 关联关系</div>
+          <div class="stat-sub" id="st-tags-sub">general_tag 关联关系</div>
         </div>
         <div class="card stat">
           <div class="stat-label">待补写 / 失败</div>
@@ -102,6 +103,7 @@
           <div class="actions">
             <button class="btn primary" id="btn-scan">▶ 立即扫描</button>
             <button class="btn" id="btn-write">⤴ 补写标签</button>
+            <button class="btn danger" id="btn-retry-failed" style="display:none">↻ 重试失败项</button>
             <button class="btn danger" id="btn-replace">↻ 重新分析(替换)</button>
           </div>
           <p class="hint"><b>补写标签</b>：把"已分析但因 Dry-run 或数据库故障而未写入
@@ -147,6 +149,15 @@
           切换模型后建议"重新分析(替换)"，否则新旧向量不互通（语义搜索只认当前模型）。</p>
           <label>单图标签上限
             <input type="number" id="cfg-clip-max" min="1" max="20"></label>
+          <div class="grid two">
+            <label>概率阈值 <span class="mono" id="v-clip-prob"></span>
+              <input type="range" id="cfg-clip-prob" min="0.01" max="0.30" step="0.01"></label>
+            <label>相似度下限
+              <input type="number" id="cfg-clip-sim" min="0.10" max="0.40" step="0.01"></label>
+          </div>
+          <p class="hint">被打上"军训"这类弱标签=阈值太松：调高<b>概率阈值</b>（建议
+          0.05~0.10）和<b>相似度下限</b>（建议 0.22~0.28），配合"结果预览"页看每类
+          置信度百分比来定。改完需重新分析才作用于历史照片。</p>
         </div>
         <div class="card">
           <h3>文字识别 OCR —— 图里写了什么字</h3>

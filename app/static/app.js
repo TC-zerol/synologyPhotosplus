@@ -137,16 +137,25 @@ function renderModels(models, cfg) {
 /* ---------------- 仪表盘 ---------------- */
 function renderStats(data) {
   const s = data.stats;
-  $("#st-processed").textContent = s.written ?? "–";
-  $("#st-written-sub").textContent = `本地共记录 ${s.processed} 项`;
+  $("#st-processed").textContent = (s.written ?? 0) + (s.empty ?? 0);
+  $("#st-written-sub").textContent =
+    `成功 ${s.written ?? 0} · 无标签 ${s.empty ?? 0} · 共记录 ${s.processed ?? 0}`;
   $("#st-tags").textContent = s.tag_links ?? "–";
-  $("#st-pending").textContent = (s.pending_write || 0) + (s.error || 0);
-  $("#st-pending-sub").textContent = `待补写 ${s.pending_write || 0} · 失败 ${s.error || 0}`;
+  $("#st-tags-sub").textContent = (s.tag_links ?? 0) === 0 && (s.pending_write ?? 0) > 0
+    ? "有结果待落库（Dry-run 或写库失败？）" : "general_tag 关联关系";
+  const exhausted = s.error_exhausted ?? 0;
+  $("#st-pending").textContent = (s.pending_write ?? 0) + (s.error ?? 0);
+  $("#st-pending-sub").textContent = `待补写 ${s.pending_write ?? 0} · 失败 ${s.error ?? 0}`
+    + (exhausted > 0 ? `（${exhausted} 已放弃重试）` : "");
+  $("#btn-retry-failed").style.display = exhausted > 0 ? "" : "none";
   $("#st-files").textContent = s.embeddings ?? "–";
-  // 过期提示条
+  // 过期提示条（已入库的旧结果需手动替换；待写/失败的旧结果自动重跑）
   const stale = data.stale || 0;
-  $("#stale-banner").classList.toggle("hidden", stale <= 0);
+  const stalePending = data.stale_pending || 0;
+  $("#stale-banner").classList.toggle("hidden", stale <= 0 && stalePending <= 0);
   $("#stale-count").textContent = stale;
+  $("#stale-pending-note").textContent =
+    stalePending > 0 ? `另有 ${stalePending} 条待写结果也来自旧模型（下次扫描自动重新分析）。` : "";
 }
 $("#btn-stale-replace").onclick = async () => {
   if (!confirm("将移除本工具已写入的全部标签，并按当前模型/词表全量重新分析。继续？")) return;
@@ -203,6 +212,14 @@ $("#btn-replace").onclick = async () => {
   catch (e) { toast(e.message, true); }
 };
 $("#btn-cancel").onclick = async () => { await POST("/api/job/cancel"); toast("已请求取消，将在当前文件处理后停止"); };
+$("#btn-retry-failed").onclick = async () => {
+  if (!confirm("将清除失败项的重试计数并重新扫描这些照片（此前已重试 3 次未成功）。继续？")) return;
+  try {
+    const r = await POST("/api/job", { type: "retry_failed" });
+    toast(`已重置 ${r.reset} 个失败项，开始重新扫描`);
+    tick();
+  } catch (e) { toast(e.message, true); }
+};
 
 /* ---------------- 设置 ---------------- */
 function fillModels(models) {
@@ -223,6 +240,9 @@ function fillSettings(cfg) {
   $("#cfg-clip-enabled").checked = cfg.clip.enabled;
   $("#cfg-clip-model").value = cfg.clip.model;
   $("#cfg-clip-max").value = cfg.clip.max_tags;
+  $("#cfg-clip-prob").value = cfg.clip.prob_thr;
+  $("#v-clip-prob").textContent = Math.round(cfg.clip.prob_thr * 100) + "%";
+  $("#cfg-clip-sim").value = cfg.clip.sim_floor;
   $("#cfg-ocr-enabled").checked = cfg.ocr.enabled;
   $("#cfg-ocr-conf").value = cfg.ocr.confidence;
   $("#cfg-ocr-minlen").value = cfg.ocr.min_kw_len;
@@ -239,6 +259,7 @@ function fillSettings(cfg) {
   $("#cfg-backup").checked = cfg.tagging.backup_before_write;
 }
 $("#cfg-detect-conf").oninput = (e) => $("#v-detect-conf").textContent = Math.round(e.target.value * 100) + "%";
+$("#cfg-clip-prob").oninput = (e) => $("#v-clip-prob").textContent = Math.round(e.target.value * 100) + "%";
 
 $("#btn-save-settings").onclick = async () => {
   const body = {
@@ -252,6 +273,8 @@ $("#btn-save-settings").onclick = async () => {
       enabled: $("#cfg-clip-enabled").checked,
       model: $("#cfg-clip-model").value,
       max_tags: parseInt($("#cfg-clip-max").value),
+      prob_thr: parseFloat($("#cfg-clip-prob").value),
+      sim_floor: parseFloat($("#cfg-clip-sim").value),
     },
     ocr: {
       enabled: $("#cfg-ocr-enabled").checked,
@@ -478,6 +501,11 @@ $("#btn-upload").onclick = async () => {
 
 
 /* ---------------- 结果预览（实时检查打标效果） ---------------- */
+function tagChip(t) {
+  if (typeof t === "string") return `<span>${t}</span>`;
+  const pct = (t.s != null && !isNaN(t.s)) ? ` ${Math.round(t.s * 100)}%` : "";
+  return `<span>${t.n}${pct}</span>`;
+}
 const STATUS_CN = {written: "已写库", analyzed: "待写库", empty: "无标签",
                    write_error: "写库失败", error: "分析失败", dryrun: "Dry-run"};
 function statusChip(s) {
@@ -494,7 +522,7 @@ async function loadRecent() {
       return;
     }
     el.innerHTML = r.items.map((it) => {
-      const tags = (it.tags || []).map((t) => `<span>${t.n ?? t}</span>`).join("");
+      const tags = (it.tags || []).map((t) => tagChip(t)).join("");
       return `<div class="result">
         <a href="${it.thumb}" target="_blank" rel="noopener">
           <img class="thumb" loading="lazy" src="${it.thumb}" onerror="this.style.opacity=.15">
@@ -528,7 +556,7 @@ async function doSearch() {
       return;
     }
     el.innerHTML = r.items.map((it) => {
-      const tags = (it.tags || []).map((t) => `<span>${t.n ?? t}</span>`).join("");
+      const tags = (it.tags || []).map((t) => tagChip(t)).join("");
       return `<div class="result">
         <img class="thumb" loading="lazy" src="${it.thumb}" onerror="this.style.opacity=.15">
         <div class="meta">

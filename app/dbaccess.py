@@ -423,7 +423,7 @@ def build_write_script(items: list) -> str:
     per_item = []
     for it in items:
         owner = it["owner_id"] or 0
-        for name, norm in it["tags"]:
+        for name, norm, _s in it["tags"]:
             tag_keys.add((owner, name, norm))
         per_item.append((it["unit_id"], owner, [t[0] for t in it["tags"]]))
     lines = ["BEGIN;"]
@@ -485,7 +485,7 @@ def parse_tag_rows(output: str) -> list:
 
 def build_existing_tags_script(items: list) -> str:
     """查询哪些 (id_user, name) 标签已存在——用于区分"复用"与"本工具新建"。"""
-    tag_keys = {(it["owner_id"] or 0, n) for it in items for n, _ in it["tags"]}
+    tag_keys = {(it["owner_id"] or 0, n) for it in items for n, *_rest in it["tags"]}
     if not tag_keys:
         return "SELECT '[]' AS t WHERE false;"
     vals = ", ".join(f"({o}::int, '{_escape(n)}'::text)" for o, n in sorted(tag_keys))
