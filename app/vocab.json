@@ -1,0 +1,1778 @@
+{
+ "_comment": "CLIP 零样本标签词表。可在网页端编辑（保存到 /config/vocab.json 覆盖）。en 用于 CLIP 提示词，zh 写入标签名。",
+ "version": 2,
+ "tags": [
+  {
+   "zh": "狗",
+   "en": "dog"
+  },
+  {
+   "zh": "猫",
+   "en": "cat"
+  },
+  {
+   "zh": "金毛犬",
+   "en": "golden retriever dog"
+  },
+  {
+   "zh": "拉布拉多犬",
+   "en": "labrador retriever dog"
+  },
+  {
+   "zh": "柯基犬",
+   "en": "corgi dog"
+  },
+  {
+   "zh": "泰迪贵宾犬",
+   "en": "poodle dog"
+  },
+  {
+   "zh": "柴犬",
+   "en": "shiba inu dog"
+  },
+  {
+   "zh": "哈士奇",
+   "en": "husky dog"
+  },
+  {
+   "zh": "德国牧羊犬",
+   "en": "german shepherd dog"
+  },
+  {
+   "zh": "萨摩耶犬",
+   "en": "samoyed dog"
+  },
+  {
+   "zh": "柯基",
+   "en": "welsh corgi"
+  },
+  {
+   "zh": "博美犬",
+   "en": "pomeranian dog"
+  },
+  {
+   "zh": "边境牧羊犬",
+   "en": "border collie dog"
+  },
+  {
+   "zh": "比熊犬",
+   "en": "bichon frise dog"
+  },
+  {
+   "zh": "法国斗牛犬",
+   "en": "french bulldog"
+  },
+  {
+   "zh": "中华田园犬",
+   "en": "mixed breed dog"
+  },
+  {
+   "zh": "幼犬",
+   "en": "puppy"
+  },
+  {
+   "zh": "橘猫",
+   "en": "orange tabby cat"
+  },
+  {
+   "zh": "狸花猫",
+   "en": "chinese li hua tabby cat"
+  },
+  {
+   "zh": "英国短毛猫",
+   "en": "british shorthair cat"
+  },
+  {
+   "zh": "布偶猫",
+   "en": "ragdoll cat"
+  },
+  {
+   "zh": "暹罗猫",
+   "en": "siamese cat"
+  },
+  {
+   "zh": "波斯猫",
+   "en": "persian cat"
+  },
+  {
+   "zh": "黑猫",
+   "en": "black cat"
+  },
+  {
+   "zh": "白猫",
+   "en": "white cat"
+  },
+  {
+   "zh": "幼猫",
+   "en": "kitten"
+  },
+  {
+   "zh": "两只猫",
+   "en": "two cats"
+  },
+  {
+   "zh": "鸟",
+   "en": "bird"
+  },
+  {
+   "zh": "鹦鹉",
+   "en": "parrot"
+  },
+  {
+   "zh": "鸽子",
+   "en": "pigeon"
+  },
+  {
+   "zh": "海鸥",
+   "en": "seagull"
+  },
+  {
+   "zh": "老鹰",
+   "en": "eagle"
+  },
+  {
+   "zh": "猫头鹰",
+   "en": "owl"
+  },
+  {
+   "zh": "鸭子",
+   "en": "duck"
+  },
+  {
+   "zh": "鹅",
+   "en": "goose"
+  },
+  {
+   "zh": "天鹅",
+   "en": "swan"
+  },
+  {
+   "zh": "孔雀",
+   "en": "peacock"
+  },
+  {
+   "zh": "鸡",
+   "en": "chicken"
+  },
+  {
+   "zh": "火烈鸟",
+   "en": "flamingo"
+  },
+  {
+   "zh": "鱼",
+   "en": "fish"
+  },
+  {
+   "zh": "金鱼",
+   "en": "goldfish"
+  },
+  {
+   "zh": "锦鲤",
+   "en": "koi fish"
+  },
+  {
+   "zh": "热带鱼",
+   "en": "tropical fish aquarium"
+  },
+  {
+   "zh": "乌龟",
+   "en": "turtle"
+  },
+  {
+   "zh": "仓鼠",
+   "en": "hamster"
+  },
+  {
+   "zh": "兔子",
+   "en": "rabbit"
+  },
+  {
+   "zh": "豚鼠",
+   "en": "guinea pig"
+  },
+  {
+   "zh": "蛇",
+   "en": "snake"
+  },
+  {
+   "zh": "蜥蜴",
+   "en": "lizard"
+  },
+  {
+   "zh": "青蛙",
+   "en": "frog"
+  },
+  {
+   "zh": "马",
+   "en": "horse"
+  },
+  {
+   "zh": "小马",
+   "en": "pony"
+  },
+  {
+   "zh": "牛",
+   "en": "cow cattle"
+  },
+  {
+   "zh": "羊",
+   "en": "sheep"
+  },
+  {
+   "zh": "山羊",
+   "en": "goat"
+  },
+  {
+   "zh": "猪",
+   "en": "pig"
+  },
+  {
+   "zh": "驴",
+   "en": "donkey"
+  },
+  {
+   "zh": "骆驼",
+   "en": "camel"
+  },
+  {
+   "zh": "鹿",
+   "en": "deer"
+  },
+  {
+   "zh": "猴子",
+   "en": "monkey"
+  },
+  {
+   "zh": "大熊猫",
+   "en": "giant panda"
+  },
+  {
+   "zh": "小熊猫",
+   "en": "red panda"
+  },
+  {
+   "zh": "老虎",
+   "en": "tiger"
+  },
+  {
+   "zh": "狮子",
+   "en": "lion"
+  },
+  {
+   "zh": "长颈鹿",
+   "en": "giraffe"
+  },
+  {
+   "zh": "大象",
+   "en": "elephant"
+  },
+  {
+   "zh": "斑马",
+   "en": "zebra"
+  },
+  {
+   "zh": "河马",
+   "en": "hippopotamus"
+  },
+  {
+   "zh": "犀牛",
+   "en": "rhinoceros"
+  },
+  {
+   "zh": "北极熊",
+   "en": "polar bear"
+  },
+  {
+   "zh": "企鹅",
+   "en": "penguin"
+  },
+  {
+   "zh": "海豚",
+   "en": "dolphin"
+  },
+  {
+   "zh": "鲸鱼",
+   "en": "whale"
+  },
+  {
+   "zh": "鲨鱼",
+   "en": "shark"
+  },
+  {
+   "zh": "水母",
+   "en": "jellyfish"
+  },
+  {
+   "zh": "海豹",
+   "en": "seal"
+  },
+  {
+   "zh": "蝴蝶",
+   "en": "butterfly"
+  },
+  {
+   "zh": "蜜蜂",
+   "en": "bee"
+  },
+  {
+   "zh": "蜻蜓",
+   "en": "dragonfly"
+  },
+  {
+   "zh": "螳螂",
+   "en": "praying mantis"
+  },
+  {
+   "zh": "蟋蟀",
+   "en": "cricket insect"
+  },
+  {
+   "zh": "蜗牛",
+   "en": "snail"
+  },
+  {
+   "zh": "蚂蚁",
+   "en": "ants"
+  },
+  {
+   "zh": "蜘蛛",
+   "en": "spider"
+  },
+  {
+   "zh": "海边",
+   "en": "beach by the sea"
+  },
+  {
+   "zh": "日出",
+   "en": "sunrise"
+  },
+  {
+   "zh": "日落",
+   "en": "sunset sky"
+  },
+  {
+   "zh": "夜景",
+   "en": "city night scene"
+  },
+  {
+   "zh": "星空",
+   "en": "starry night sky"
+  },
+  {
+   "zh": "银河",
+   "en": "milky way night sky"
+  },
+  {
+   "zh": "山景",
+   "en": "mountain landscape"
+  },
+  {
+   "zh": "雪山",
+   "en": "snowy mountain"
+  },
+  {
+   "zh": "森林",
+   "en": "forest"
+  },
+  {
+   "zh": "竹林",
+   "en": "bamboo forest"
+  },
+  {
+   "zh": "草原",
+   "en": "grassland prairie"
+  },
+  {
+   "zh": "沙漠",
+   "en": "desert dunes"
+  },
+  {
+   "zh": "湖泊",
+   "en": "lake"
+  },
+  {
+   "zh": "河流",
+   "en": "river"
+  },
+  {
+   "zh": "瀑布",
+   "en": "waterfall"
+  },
+  {
+   "zh": "田野",
+   "en": "farm field"
+  },
+  {
+   "zh": "稻田",
+   "en": "rice paddy field"
+  },
+  {
+   "zh": "油菜花田",
+   "en": "canola flower field"
+  },
+  {
+   "zh": "薰衣草田",
+   "en": "lavender field"
+  },
+  {
+   "zh": "向日葵田",
+   "en": "sunflower field"
+  },
+  {
+   "zh": "雪景",
+   "en": "snow scene"
+  },
+  {
+   "zh": "雾景",
+   "en": "foggy scene"
+  },
+  {
+   "zh": "彩虹",
+   "en": "rainbow"
+  },
+  {
+   "zh": "雷电",
+   "en": "lightning storm"
+  },
+  {
+   "zh": "云海",
+   "en": "sea of clouds"
+  },
+  {
+   "zh": "天空",
+   "en": "sky with clouds"
+  },
+  {
+   "zh": "月亮",
+   "en": "moon in the sky"
+  },
+  {
+   "zh": "极光",
+   "en": "aurora borealis"
+  },
+  {
+   "zh": "花卉特写",
+   "en": "flower close-up"
+  },
+  {
+   "zh": "樱花",
+   "en": "cherry blossom"
+  },
+  {
+   "zh": "荷花",
+   "en": "lotus flower"
+  },
+  {
+   "zh": "玫瑰",
+   "en": "roses"
+  },
+  {
+   "zh": "郁金香",
+   "en": "tulips"
+  },
+  {
+   "zh": "牡丹",
+   "en": "peony flowers"
+  },
+  {
+   "zh": "菊花",
+   "en": "chrysanthemum flowers"
+  },
+  {
+   "zh": "多肉植物",
+   "en": "succulent plants"
+  },
+  {
+   "zh": "盆栽",
+   "en": "potted plant"
+  },
+  {
+   "zh": "公园",
+   "en": "city park"
+  },
+  {
+   "zh": "花园",
+   "en": "garden"
+  },
+  {
+   "zh": "草坪野餐",
+   "en": "picnic on the grass"
+  },
+  {
+   "zh": "火锅",
+   "en": "hotpot meal"
+  },
+  {
+   "zh": "烧烤",
+   "en": "barbecue grill food"
+  },
+  {
+   "zh": "早餐",
+   "en": "breakfast food"
+  },
+  {
+   "zh": "午餐",
+   "en": "lunch food"
+  },
+  {
+   "zh": "晚餐",
+   "en": "dinner food"
+  },
+  {
+   "zh": "蛋糕甜点",
+   "en": "cake dessert"
+  },
+  {
+   "zh": "生日蛋糕",
+   "en": "birthday cake with candles"
+  },
+  {
+   "zh": "面包烘焙",
+   "en": "bread bakery"
+  },
+  {
+   "zh": "饺子",
+   "en": "dumplings"
+  },
+  {
+   "zh": "面条",
+   "en": "noodles"
+  },
+  {
+   "zh": "米饭中餐",
+   "en": "chinese rice meal"
+  },
+  {
+   "zh": "寿司",
+   "en": "sushi"
+  },
+  {
+   "zh": "披萨",
+   "en": "pizza"
+  },
+  {
+   "zh": "汉堡",
+   "en": "hamburger"
+  },
+  {
+   "zh": "火锅聚餐",
+   "en": "friends hotpot dinner"
+  },
+  {
+   "zh": "咖啡",
+   "en": "coffee cup"
+  },
+  {
+   "zh": "奶茶",
+   "en": "bubble milk tea"
+  },
+  {
+   "zh": "水果拼盘",
+   "en": "fruit platter"
+  },
+  {
+   "zh": "西瓜",
+   "en": "watermelon"
+  },
+  {
+   "zh": "草莓",
+   "en": "strawberries"
+  },
+  {
+   "zh": "葡萄",
+   "en": "grapes"
+  },
+  {
+   "zh": "芒果",
+   "en": "mango"
+  },
+  {
+   "zh": "榴莲",
+   "en": "durian fruit"
+  },
+  {
+   "zh": "海鲜",
+   "en": "seafood dish"
+  },
+  {
+   "zh": "螃蟹",
+   "en": "crab"
+  },
+  {
+   "zh": "小龙虾",
+   "en": "crayfish dish"
+  },
+  {
+   "zh": "冰淇淋",
+   "en": "ice cream"
+  },
+  {
+   "zh": "粽子",
+   "en": "zongzi rice dumpling"
+  },
+  {
+   "zh": "月饼",
+   "en": "mooncake"
+  },
+  {
+   "zh": "汤圆",
+   "en": "tangyuan glutinous rice balls"
+  },
+  {
+   "zh": "生日聚会",
+   "en": "birthday party"
+  },
+  {
+   "zh": "婚礼",
+   "en": "wedding ceremony"
+  },
+  {
+   "zh": "毕业典礼",
+   "en": "graduation ceremony"
+  },
+  {
+   "zh": "春节",
+   "en": "chinese new year celebration"
+  },
+  {
+   "zh": "元宵灯会",
+   "en": "lantern festival"
+  },
+  {
+   "zh": "中秋节",
+   "en": "mid autumn festival"
+  },
+  {
+   "zh": "圣诞节",
+   "en": "christmas tree decorations"
+  },
+  {
+   "zh": "万圣节",
+   "en": "halloween pumpkins"
+  },
+  {
+   "zh": "烟花",
+   "en": "fireworks"
+  },
+  {
+   "zh": "灯笼",
+   "en": "red lanterns"
+  },
+  {
+   "zh": "春联",
+   "en": "spring festival couplets"
+  },
+  {
+   "zh": "年夜饭",
+   "en": "reunion dinner family feast"
+  },
+  {
+   "zh": "庙会",
+   "en": "chinese temple fair"
+  },
+  {
+   "zh": "舞龙舞狮",
+   "en": "dragon dance lion dance"
+  },
+  {
+   "zh": "家庭合影",
+   "en": "family group photo"
+  },
+  {
+   "zh": "朋友聚会",
+   "en": "friends gathering party"
+  },
+  {
+   "zh": "自拍",
+   "en": "selfie portrait"
+  },
+  {
+   "zh": "人像特写",
+   "en": "close-up portrait"
+  },
+  {
+   "zh": "婴儿",
+   "en": "baby"
+  },
+  {
+   "zh": "儿童",
+   "en": "children playing"
+  },
+  {
+   "zh": "老人",
+   "en": "elderly person"
+  },
+  {
+   "zh": "孕妇照",
+   "en": "pregnancy photo"
+  },
+  {
+   "zh": "毕业照",
+   "en": "graduation photo"
+  },
+  {
+   "zh": "证件照",
+   "en": "id portrait photo"
+  },
+  {
+   "zh": "情侣照",
+   "en": "couple photo"
+  },
+  {
+   "zh": "合影",
+   "en": "group photo"
+  },
+  {
+   "zh": "旅行",
+   "en": "travel sightseeing"
+  },
+  {
+   "zh": "徒步登山",
+   "en": "hiking mountain trail"
+  },
+  {
+   "zh": "露营",
+   "en": "camping tent"
+  },
+  {
+   "zh": "野餐",
+   "en": "picnic"
+  },
+  {
+   "zh": "游泳",
+   "en": "swimming pool"
+  },
+  {
+   "zh": "浮潜潜水",
+   "en": "snorkeling diving"
+  },
+  {
+   "zh": "滑雪",
+   "en": "skiing snow"
+  },
+  {
+   "zh": "滑冰",
+   "en": "ice skating"
+  },
+  {
+   "zh": "骑行",
+   "en": "cycling bicycle ride"
+  },
+  {
+   "zh": "跑步",
+   "en": "running jogging"
+  },
+  {
+   "zh": "马拉松",
+   "en": "marathon race"
+  },
+  {
+   "zh": "瑜伽",
+   "en": "yoga"
+  },
+  {
+   "zh": "健身",
+   "en": "gym workout"
+  },
+  {
+   "zh": "钓鱼",
+   "en": "fishing"
+  },
+  {
+   "zh": "放风筝",
+   "en": "flying a kite"
+  },
+  {
+   "zh": "打篮球",
+   "en": "playing basketball"
+  },
+  {
+   "zh": "踢足球",
+   "en": "playing soccer football"
+  },
+  {
+   "zh": "打羽毛球",
+   "en": "playing badminton"
+  },
+  {
+   "zh": "打乒乓球",
+   "en": "playing table tennis"
+  },
+  {
+   "zh": "打网球",
+   "en": "playing tennis"
+  },
+  {
+   "zh": "游泳馆",
+   "en": "swimming pool indoors"
+  },
+  {
+   "zh": "游乐场",
+   "en": "amusement park"
+  },
+  {
+   "zh": "动物园",
+   "en": "zoo animals"
+  },
+  {
+   "zh": "水族馆",
+   "en": "aquarium"
+  },
+  {
+   "zh": "博物馆",
+   "en": "museum interior"
+  },
+  {
+   "zh": "美术馆",
+   "en": "art gallery"
+  },
+  {
+   "zh": "演唱会",
+   "en": "concert stage lights"
+  },
+  {
+   "zh": "音乐节",
+   "en": "music festival crowd"
+  },
+  {
+   "zh": "看电影",
+   "en": "movie theater"
+  },
+  {
+   "zh": "逛街购物",
+   "en": "shopping mall"
+  },
+  {
+   "zh": "游乐场旋转木马",
+   "en": "carousel merry-go-round"
+  },
+  {
+   "zh": "温泉",
+   "en": "hot spring onsen"
+  },
+  {
+   "zh": "骑行旅行",
+   "en": "bicycle touring"
+  },
+  {
+   "zh": "自驾游",
+   "en": "road trip car"
+  },
+  {
+   "zh": "游轮",
+   "en": "cruise ship"
+  },
+  {
+   "zh": "城市街景",
+   "en": "city street"
+  },
+  {
+   "zh": "马路",
+   "en": "road with cars"
+  },
+  {
+   "zh": "天桥",
+   "en": "pedestrian overpass"
+  },
+  {
+   "zh": "立交桥",
+   "en": "highway interchange"
+  },
+  {
+   "zh": "隧道",
+   "en": "tunnel"
+  },
+  {
+   "zh": "火车站",
+   "en": "train station"
+  },
+  {
+   "zh": "高铁",
+   "en": "high speed train"
+  },
+  {
+   "zh": "地铁",
+   "en": "subway metro"
+  },
+  {
+   "zh": "机场",
+   "en": "airport terminal"
+  },
+  {
+   "zh": "飞机窗景",
+   "en": "airplane window view"
+  },
+  {
+   "zh": "公交站",
+   "en": "bus stop"
+  },
+  {
+   "zh": "港口码头",
+   "en": "harbor pier boats"
+  },
+  {
+   "zh": "大桥",
+   "en": "bridge"
+  },
+  {
+   "zh": "摩天大楼",
+   "en": "skyscrapers"
+  },
+  {
+   "zh": "古镇",
+   "en": "chinese ancient town"
+  },
+  {
+   "zh": "寺庙",
+   "en": "chinese temple"
+  },
+  {
+   "zh": "教堂",
+   "en": "church"
+  },
+  {
+   "zh": "宫殿",
+   "en": "palace architecture"
+  },
+  {
+   "zh": "城墙",
+   "en": "ancient city wall"
+  },
+  {
+   "zh": "园林",
+   "en": "chinese classical garden"
+  },
+  {
+   "zh": "喷泉广场",
+   "en": "fountain plaza"
+  },
+  {
+   "zh": "夜市",
+   "en": "night market food stalls"
+  },
+  {
+   "zh": "商场中庭",
+   "en": "shopping mall atrium"
+  },
+  {
+   "zh": "游乐场过山车",
+   "en": "roller coaster"
+  },
+  {
+   "zh": "沙滩排球",
+   "en": "beach volleyball"
+  },
+  {
+   "zh": "灯塔",
+   "en": "lighthouse"
+  },
+  {
+   "zh": "汽车",
+   "en": "car"
+  },
+  {
+   "zh": "电动汽车",
+   "en": "electric car"
+  },
+  {
+   "zh": "自行车",
+   "en": "bicycle"
+  },
+  {
+   "zh": "摩托车",
+   "en": "motorcycle"
+  },
+  {
+   "zh": "电动车",
+   "en": "electric scooter moped"
+  },
+  {
+   "zh": "三轮车",
+   "en": "tricycle cart"
+  },
+  {
+   "zh": "公交车",
+   "en": "bus"
+  },
+  {
+   "zh": "出租车",
+   "en": "taxi"
+  },
+  {
+   "zh": "卡车",
+   "en": "truck"
+  },
+  {
+   "zh": "货车",
+   "en": "van cargo"
+  },
+  {
+   "zh": "救护车",
+   "en": "ambulance"
+  },
+  {
+   "zh": "消防车",
+   "en": "fire truck"
+  },
+  {
+   "zh": "警车",
+   "en": "police car"
+  },
+  {
+   "zh": "工程车",
+   "en": "construction vehicle excavator"
+  },
+  {
+   "zh": "吊车",
+   "en": "crane machinery"
+  },
+  {
+   "zh": "拖拉机",
+   "en": "tractor"
+  },
+  {
+   "zh": "收割机",
+   "en": "combine harvester"
+  },
+  {
+   "zh": "船",
+   "en": "boat"
+  },
+  {
+   "zh": "帆船",
+   "en": "sailboat"
+  },
+  {
+   "zh": "游艇",
+   "en": "yacht"
+  },
+  {
+   "zh": "皮划艇",
+   "en": "kayak"
+  },
+  {
+   "zh": "热气球",
+   "en": "hot air balloon"
+  },
+  {
+   "zh": "直升机",
+   "en": "helicopter"
+  },
+  {
+   "zh": "客厅",
+   "en": "living room interior"
+  },
+  {
+   "zh": "卧室",
+   "en": "bedroom interior"
+  },
+  {
+   "zh": "厨房",
+   "en": "kitchen interior"
+  },
+  {
+   "zh": "浴室",
+   "en": "bathroom interior"
+  },
+  {
+   "zh": "餐厅",
+   "en": "dining room"
+  },
+  {
+   "zh": "书房",
+   "en": "home office study room"
+  },
+  {
+   "zh": "办公室",
+   "en": "office interior"
+  },
+  {
+   "zh": "会议室",
+   "en": "meeting room"
+  },
+  {
+   "zh": "教室",
+   "en": "classroom"
+  },
+  {
+   "zh": "图书馆",
+   "en": "library"
+  },
+  {
+   "zh": "酒店房间",
+   "en": "hotel room"
+  },
+  {
+   "zh": "商场店铺",
+   "en": "retail store"
+  },
+  {
+   "zh": "理发店",
+   "en": "barbershop salon"
+  },
+  {
+   "zh": "健身房内",
+   "en": "gym interior"
+  },
+  {
+   "zh": "医院",
+   "en": "hospital"
+  },
+  {
+   "zh": "诊所",
+   "en": "clinic"
+  },
+  {
+   "zh": "电脑屏幕",
+   "en": "computer monitor screen"
+  },
+  {
+   "zh": "手机屏幕",
+   "en": "smartphone screen"
+  },
+  {
+   "zh": "键盘",
+   "en": "keyboard"
+  },
+  {
+   "zh": "耳机",
+   "en": "headphones"
+  },
+  {
+   "zh": "相机",
+   "en": "camera"
+  },
+  {
+   "zh": "游戏机",
+   "en": "game console"
+  },
+  {
+   "zh": "手表",
+   "en": "wristwatch"
+  },
+  {
+   "zh": "珠宝",
+   "en": "jewelry"
+  },
+  {
+   "zh": "眼镜",
+   "en": "eyeglasses"
+  },
+  {
+   "zh": "鞋子",
+   "en": "shoes sneakers"
+  },
+  {
+   "zh": "球鞋收藏",
+   "en": "sneaker collection"
+  },
+  {
+   "zh": "衣服",
+   "en": "clothing"
+  },
+  {
+   "zh": "婚纱",
+   "en": "wedding dress"
+  },
+  {
+   "zh": "旗袍",
+   "en": "qipao cheongsam dress"
+  },
+  {
+   "zh": "汉服",
+   "en": "hanfu traditional chinese clothing"
+  },
+  {
+   "zh": "cosplay",
+   "en": "cosplay costume"
+  },
+  {
+   "zh": "玩具",
+   "en": "toys"
+  },
+  {
+   "zh": "乐高",
+   "en": "lego bricks"
+  },
+  {
+   "zh": "手办模型",
+   "en": "anime figure collection"
+  },
+  {
+   "zh": "盲盒",
+   "en": "blind box toys"
+  },
+  {
+   "zh": "书架",
+   "en": "bookshelf books"
+  },
+  {
+   "zh": "字画",
+   "en": "chinese calligraphy painting"
+  },
+  {
+   "zh": "婚纱照",
+   "en": "wedding photo shoot"
+  },
+  {
+   "zh": "截图",
+   "en": "screenshot of an app interface"
+  },
+  {
+   "zh": "聊天记录截图",
+   "en": "chat conversation screenshot"
+  },
+  {
+   "zh": "网页截图",
+   "en": "webpage screenshot"
+  },
+  {
+   "zh": "微信二维码",
+   "en": "QR code"
+  },
+  {
+   "zh": "条形码",
+   "en": "barcode"
+  },
+  {
+   "zh": "发票",
+   "en": "invoice receipt document"
+  },
+  {
+   "zh": "收据小票",
+   "en": "receipt paper"
+  },
+  {
+   "zh": "合同文件",
+   "en": "contract document"
+  },
+  {
+   "zh": "证件",
+   "en": "id card document"
+  },
+  {
+   "zh": "名片",
+   "en": "business card"
+  },
+  {
+   "zh": "票据凭证",
+   "en": "ticket stub"
+  },
+  {
+   "zh": "登机牌",
+   "en": "boarding pass"
+  },
+  {
+   "zh": "火车票",
+   "en": "train ticket"
+  },
+  {
+   "zh": "快递单",
+   "en": "shipping label package"
+  },
+  {
+   "zh": "手写笔记",
+   "en": "handwritten notes"
+  },
+  {
+   "zh": "书籍内页",
+   "en": "book page text"
+  },
+  {
+   "zh": "菜单",
+   "en": "restaurant menu"
+  },
+  {
+   "zh": "海报",
+   "en": "poster"
+  },
+  {
+   "zh": "漫画",
+   "en": "comic page"
+  },
+  {
+   "zh": "代码截图",
+   "en": "programming code screenshot"
+  },
+  {
+   "zh": "表格文档",
+   "en": "spreadsheet table document"
+  },
+  {
+   "zh": "演示文稿",
+   "en": "presentation slides"
+  },
+  {
+   "zh": "电子书",
+   "en": "ebook page"
+  },
+  {
+   "zh": "车牌",
+   "en": "license plate"
+  },
+  {
+   "zh": "路牌指示牌",
+   "en": "road sign"
+  },
+  {
+   "zh": "广告牌",
+   "en": "billboard"
+  },
+  {
+   "zh": "素描绘画",
+   "en": "pencil sketch drawing"
+  },
+  {
+   "zh": "水彩画",
+   "en": "watercolor painting"
+  },
+  {
+   "zh": "油画",
+   "en": "oil painting"
+  },
+  {
+   "zh": "书法",
+   "en": "chinese calligraphy artwork"
+  },
+  {
+   "zh": "涂鸦",
+   "en": "graffiti wall art"
+  },
+  {
+   "zh": "雕塑",
+   "en": "sculpture statue"
+  },
+  {
+   "zh": "手工艺品",
+   "en": "handmade craft"
+  },
+  {
+   "zh": "积木作品",
+   "en": "building blocks creation"
+  },
+  {
+   "zh": "白天户外",
+   "en": "outdoors during daytime"
+  },
+  {
+   "zh": "室内",
+   "en": "indoors"
+  },
+  {
+   "zh": "美食特写",
+   "en": "food close-up"
+  },
+  {
+   "zh": "俯拍",
+   "en": "top-down flat lay view"
+  },
+  {
+   "zh": "微距",
+   "en": "macro close-up shot"
+  },
+  {
+   "zh": "黑白照片",
+   "en": "black and white photo"
+  },
+  {
+   "zh": "模糊废片",
+   "en": "blurry photo"
+  },
+  {
+   "zh": "翻拍老照片",
+   "en": "photo of an old printed photograph"
+  },
+  {
+   "zh": "镜子自拍",
+   "en": "mirror selfie"
+  },
+  {
+   "zh": "无人机航拍",
+   "en": "aerial drone view"
+  },
+  {
+   "zh": "早餐摊",
+   "en": "chinese breakfast street stall"
+  },
+  {
+   "zh": "包子",
+   "en": "steamed buns baozi"
+  },
+  {
+   "zh": "麻辣烫",
+   "en": "malatang spicy hot pot"
+  },
+  {
+   "zh": "螺蛳粉",
+   "en": "luosifen rice noodles"
+  },
+  {
+   "zh": "米线",
+   "en": "rice noodle soup"
+  },
+  {
+   "zh": "拉面",
+   "en": "hand pulled noodles"
+  },
+  {
+   "zh": "大排档",
+   "en": "open air food stalls night"
+  },
+  {
+   "zh": "自助餐",
+   "en": "buffet restaurant"
+  },
+  {
+   "zh": "日料",
+   "en": "japanese cuisine sushi bar"
+  },
+  {
+   "zh": "咖啡拉花",
+   "en": "latte art coffee"
+  },
+  {
+   "zh": "水果摊",
+   "en": "fruit stall market"
+  },
+  {
+   "zh": "菜市场",
+   "en": "wet market vegetables"
+  },
+  {
+   "zh": "超市购物",
+   "en": "supermarket shopping cart"
+  },
+  {
+   "zh": "外卖",
+   "en": "food delivery takeaway"
+  },
+  {
+   "zh": "收快递",
+   "en": "receiving delivery packages boxes"
+  },
+  {
+   "zh": "包饺子",
+   "en": "making dumplings together"
+  },
+  {
+   "zh": "晒被子",
+   "en": "quilts drying in the sun"
+  },
+  {
+   "zh": "晾衣服",
+   "en": "laundry hanging to dry"
+  },
+  {
+   "zh": "养花",
+   "en": "growing flowers at home"
+  },
+  {
+   "zh": "阳台种菜",
+   "en": "balcony vegetable garden"
+  },
+  {
+   "zh": "装修",
+   "en": "home renovation construction"
+  },
+  {
+   "zh": "搬家",
+   "en": "moving house boxes"
+  },
+  {
+   "zh": "洗车",
+   "en": "car wash"
+  },
+  {
+   "zh": "加油站",
+   "en": "gas station fuel"
+  },
+  {
+   "zh": "充电桩",
+   "en": "ev charging station"
+  },
+  {
+   "zh": "服务区",
+   "en": "highway rest area china"
+  },
+  {
+   "zh": "高速堵车",
+   "en": "highway traffic jam"
+  },
+  {
+   "zh": "共享单车",
+   "en": "shared bikes parking"
+  },
+  {
+   "zh": "摆摊",
+   "en": "street vendor stall"
+  },
+  {
+   "zh": "便利店",
+   "en": "convenience store"
+  },
+  {
+   "zh": "广场舞",
+   "en": "square dancing grannies"
+  },
+  {
+   "zh": "太极拳",
+   "en": "tai chi morning practice"
+  },
+  {
+   "zh": "晨练",
+   "en": "morning exercise park"
+  },
+  {
+   "zh": "遛狗",
+   "en": "walking the dog leash"
+  },
+  {
+   "zh": "打麻将",
+   "en": "playing mahjong"
+  },
+  {
+   "zh": "下棋",
+   "en": "playing chinese chess xiangqi"
+  },
+  {
+   "zh": "桌游",
+   "en": "board game night friends"
+  },
+  {
+   "zh": "剧本杀",
+   "en": "script murder game party"
+  },
+  {
+   "zh": "密室逃脱",
+   "en": "escape room game"
+  },
+  {
+   "zh": "卡丁车",
+   "en": "go kart racing"
+  },
+  {
+   "zh": "拔河",
+   "en": "tug of war"
+  },
+  {
+   "zh": "跳绳",
+   "en": "jumping rope"
+  },
+  {
+   "zh": "采茶",
+   "en": "tea picking plantation"
+  },
+  {
+   "zh": "水果采摘",
+   "en": "fruit picking orchard"
+  },
+  {
+   "zh": "农家乐",
+   "en": "farmhouse leisure china"
+  },
+  {
+   "zh": "垂钓",
+   "en": "fishing by the lake"
+  },
+  {
+   "zh": "写作业",
+   "en": "child doing homework"
+  },
+  {
+   "zh": "接送孩子",
+   "en": "school pickup children backpacks"
+  },
+  {
+   "zh": "幼儿园",
+   "en": "kindergarten kids"
+  },
+  {
+   "zh": "运动会",
+   "en": "school sports day"
+  },
+  {
+   "zh": "军训",
+   "en": "military training students"
+  },
+  {
+   "zh": "儿童节",
+   "en": "childrens day celebration"
+  },
+  {
+   "zh": "春游",
+   "en": "school spring outing bus"
+  },
+  {
+   "zh": "亲子游",
+   "en": "family trip with kids"
+  },
+  {
+   "zh": "练钢琴",
+   "en": "piano practice lesson"
+  },
+  {
+   "zh": "舞蹈课",
+   "en": "kids dance class"
+  },
+  {
+   "zh": "跆拳道",
+   "en": "taekwondo class kids"
+  },
+  {
+   "zh": "赛龙舟",
+   "en": "dragon boat race"
+  },
+  {
+   "zh": "赏月",
+   "en": "admiring the full moon"
+  },
+  {
+   "zh": "扫墓祭祖",
+   "en": "tomb sweeping qingming festival"
+  },
+  {
+   "zh": "跨年",
+   "en": "new year eve countdown"
+  },
+  {
+   "zh": "红包",
+   "en": "red envelope hongbao"
+  },
+  {
+   "zh": "拜年",
+   "en": "new year greetings family visit"
+  },
+  {
+   "zh": "孔明灯",
+   "en": "sky lanterns floating"
+  },
+  {
+   "zh": "满月宴",
+   "en": "baby full month banquet"
+  },
+  {
+   "zh": "周岁宴",
+   "en": "first birthday celebration"
+  },
+  {
+   "zh": "订婚",
+   "en": "engagement ceremony"
+  },
+  {
+   "zh": "接亲",
+   "en": "wedding car procession china"
+  },
+  {
+   "zh": "同学聚会",
+   "en": "classmates reunion dinner"
+  },
+  {
+   "zh": "乔迁新居",
+   "en": "new home housewarming"
+  },
+  {
+   "zh": "送礼物",
+   "en": "giving gifts celebration"
+  },
+  {
+   "zh": "拆礼物",
+   "en": "opening presents"
+  },
+  {
+   "zh": "缆车",
+   "en": "cable car mountain"
+  },
+  {
+   "zh": "漂流",
+   "en": "river rafting"
+  },
+  {
+   "zh": "竹筏",
+   "en": "bamboo raft river"
+  },
+  {
+   "zh": "民宿",
+   "en": "homestay guesthouse interior"
+  },
+  {
+   "zh": "行李箱",
+   "en": "suitcase luggage travel"
+  },
+  {
+   "zh": "步行街",
+   "en": "pedestrian shopping street"
+  },
+  {
+   "zh": "老街",
+   "en": "old town street china"
+  },
+  {
+   "zh": "银杏",
+   "en": "ginkgo trees golden autumn"
+  },
+  {
+   "zh": "枫叶",
+   "en": "red maple leaves"
+  },
+  {
+   "zh": "落叶",
+   "en": "fallen leaves autumn ground"
+  },
+  {
+   "zh": "梅花",
+   "en": "plum blossom winter"
+  },
+  {
+   "zh": "桂花",
+   "en": "osmanthus flowers"
+  },
+  {
+   "zh": "堆雪人",
+   "en": "building a snowman"
+  },
+  {
+   "zh": "打雪仗",
+   "en": "snowball fight"
+  },
+  {
+   "zh": "梯田",
+   "en": "rice terraces"
+  },
+  {
+   "zh": "芦苇",
+   "en": "reed marsh golden"
+  },
+  {
+   "zh": "白鹭",
+   "en": "egrets wetland birds"
+  },
+  {
+   "zh": "灯光秀",
+   "en": "city light show night"
+  },
+  {
+   "zh": "体检",
+   "en": "health checkup medical"
+  },
+  {
+   "zh": "输液打针",
+   "en": "iv drip hospital treatment"
+  },
+  {
+   "zh": "打疫苗",
+   "en": "vaccination injection"
+  },
+  {
+   "zh": "配眼镜",
+   "en": "optician eye exam"
+  },
+  {
+   "zh": "按摩",
+   "en": "massage therapy"
+  },
+  {
+   "zh": "泡脚",
+   "en": "foot soaking basin"
+  }
+ ]
+}

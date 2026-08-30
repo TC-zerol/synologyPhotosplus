@@ -1,0 +1,42 @@
+# Synology Photos+ —— 路线A：直写 Photos 数据库的智能打标服务
+#
+# 部署：整个项目文件夹复制到 /volume1/docker/synologyPhotosplus
+# （config 目录已随项目附带，无需手动创建），然后：
+#   cd /volume1/docker/synologyPhotosplus
+#   sudo docker compose up -d --build
+#
+# 所有数据（配置、记账库、数据库备份）都保存在项目目录的 ./config/ 里，
+# 不在系统其他位置创建任何文件。
+#
+# ⚠ 照片目录挂载（只读）：
+#   容器会自动递归索引 /photos 下的全部媒体文件，多用户/子目录无需逐个配置。
+#   个人空间（所有用户）：挂 /volume1/homes 即可，例如
+#       /volume1/homes/<user>/Photos/MobileBackup、PhotoLibrary 都会被自动发现。
+#   如果还用了团队空间等其他共享文件夹，再加一行挂载即可：
+#       - /volume1/photo:/photos/photo:ro
+#   注意：挂载的源路径必须真实存在，否则容器无法启动。
+
+services:
+  photosplus:
+    build: .
+    image: synology-photosplus:latest
+    container_name: synology-photosplus
+    hostname: photosplus
+    # host 网络：Web UI 直接跑在 NAS 的 47310 端口（可用 SP_PORT 环境变量修改），
+    # 且 SSH 目标可直接填 127.0.0.1（连 NAS 本机 sshd）
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+      - SP_PORT=47310             # Web 控制台端口（host 网络，改这里即可）
+      - SP_ORT_THREADS=2          # onnxruntime CPU 线程数，DS220+ 双核建议 2
+    volumes:
+      # 配置/记账库/备份 → 项目目录内 ./config/（不存在时自动创建）
+      - ./config:/config
+      # ↓↓↓ 照片目录（只读）。多用户 homes 一个根目录就够，自动检测所有用户 ↓↓↓
+      - /volume1/homes:/photos/homes:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

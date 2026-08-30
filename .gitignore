@@ -1,0 +1,11 @@
+# 运行时数据（NAS 上由容器写入）：保留目录本身，忽略其内容
+config/*
+!config/.gitkeep
+
+# Python
+__pycache__/
+*.pyc
+
+# 模型二进制不入库（体积大；来源与 sha256 见 AGENTS.md 第 8 节）
+app/models/*.onnx
+app/models/clip/*.onnx

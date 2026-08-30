@@ -1,0 +1,1 @@
+此目录用于保存运行时数据：config.json / tagger.db / backups/ 等，由容器自动写入，请勿删除本占位文件。

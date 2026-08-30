@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Synology Photos+ 控制台</title>
+<link rel="stylesheet" href="/static/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📸</text></svg>">
+</head>
+<body>
+<div id="login" class="login-overlay hidden">
+  <div class="login-card">
+    <div class="login-logo">📸</div>
+    <h2>Synology Photos+</h2>
+    <input type="password" id="login-pw" placeholder="访问口令" autocomplete="current-password">
+    <button class="btn primary" id="login-btn">进入</button>
+    <div class="login-err hidden" id="login-err">口令错误</div>
+  </div>
+</div>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-icon">📸</div>
+      <div>
+        <div class="brand-name">Photos<em>+</em></div>
+        <div class="brand-sub">Synology 智能打标</div>
+      </div>
+    </div>
+    <nav>
+      <a class="nav-item active" data-tab="dash"><span>◉</span>仪表盘</a>
+      <a class="nav-item" data-tab="settings"><span>⚙</span>识别设置</a>
+      <a class="nav-item" data-tab="db"><span>🗄</span>数据库</a>
+      <a class="nav-item" data-tab="models"><span>🧠</span>模型与词表</a>
+      <a class="nav-item" data-tab="recent"><span>🖼</span>结果预览</a>
+      <a class="nav-item" data-tab="search"><span>🔎</span>图片搜索</a>
+      <a class="nav-item" data-tab="logs"><span>📜</span>运行日志</a>
+    </nav>
+    <div class="sidebar-foot">
+      <div class="dot" id="ws-dot"></div>
+      <span id="foot-status">连接中…</span>
+    </div>
+  </aside>
+
+  <main class="main">
+    <!-- ============ 仪表盘 ============ -->
+    <section class="tab active" id="tab-dash">
+      <div class="card hidden" id="stale-banner" style="margin-bottom:16px; border-color: rgba(251,191,36,.4)">
+        <b style="color:var(--warn)">⚠ 有 <span id="stale-count">0</span> 张照片是用旧模型/词表/参数分析的</b>
+        <span class="muted small">　修改识别设置、更换模型或编辑词表后，已有标签不会自动更新（增量扫描会跳过已处理照片）。
+        要按当前配置重刷，点右侧按钮：会先移除本工具写的旧标签，再全量重新分析。</span>
+        <button class="btn" id="btn-stale-replace" style="float:right">↻ 重新分析(替换)</button>
+        <div style="clear:both"></div>
+      </div>
+      <div class="grid stats">
+        <div class="card stat">
+          <div class="stat-label">已处理媒体</div>
+          <div class="stat-value" id="st-processed">–</div>
+          <div class="stat-sub" id="st-written-sub"></div>
+        </div>
+        <div class="card stat">
+          <div class="stat-label">已写入标签</div>
+          <div class="stat-value" id="st-tags">–</div>
+          <div class="stat-sub">general_tag 关联关系</div>
+        </div>
+        <div class="card stat">
+          <div class="stat-label">待补写 / 失败</div>
+          <div class="stat-value amber" id="st-pending">–</div>
+          <div class="stat-sub" id="st-pending-sub">写库失败不丢结果</div>
+        </div>
+        <div class="card stat">
+          <div class="stat-label">语义向量</div>
+          <div class="stat-value" id="st-files">–</div>
+          <div class="stat-sub">支持自然语言搜图</div>
+        </div>
+      </div>
+
+      <div class="grid two">
+        <div class="card">
+          <h3>当前任务</h3>
+          <div id="job-empty" class="muted">暂无任务。点击下方"立即扫描"开始。</div>
+          <div id="job-box" class="hidden">
+            <div class="job-head">
+              <span class="chip" id="job-type">–</span>
+              <span class="chip ghost" id="job-phase">–</span>
+              <span class="job-eta muted" id="job-eta"></span>
+            </div>
+            <div class="progress-track"><div class="progress-fill" id="job-bar"></div></div>
+            <div class="job-row">
+              <span id="job-count" class="mono">0 / 0</span>
+              <span class="muted" id="job-cur"></span>
+            </div>
+            <div class="job-row small muted" id="job-stats"></div>
+            <p class="hint" style="margin-top:8px">计数说明：<b>匹配</b>=照片与本地文件成功配对；
+            <b>未匹配</b>=数据库有记录但挂载目录里找不到文件（不影响，之后挂载齐了会自动补）；
+            <b>已写标签</b>=本次任务累计写入的标签<b>总数</b>（多张照片之和，单张受
+            "标签总量上限"约束，并非单张 555 个）；<b>错误</b>=分析或写库失败
+            （自动重试，不影响其他照片）。</p>
+            <button class="btn danger" id="btn-cancel">取消任务</button>
+          </div>
+          <div class="actions">
+            <button class="btn primary" id="btn-scan">▶ 立即扫描</button>
+            <button class="btn" id="btn-write">⤴ 补写标签</button>
+            <button class="btn danger" id="btn-replace">↻ 重新分析(替换)</button>
+          </div>
+          <p class="hint"><b>补写标签</b>：把"已分析但因 Dry-run 或数据库故障而未写入
+          Photos"的结果一次性落库——<b>不重新推理</b>，秒级完成、可重复点击。
+          每次增量扫描开始时也会自动补写，平时无需手动点。</p>
+        </div>
+        <div class="card">
+          <h3>上次任务</h3>
+          <div id="last-job" class="mono small muted">–</div>
+          <h3 style="margin-top:18px">高频标签</h3>
+          <div id="top-tags" class="tagcloud"><span class="muted">暂无数据</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 识别设置 ============ -->
+    <section class="tab" id="tab-settings">
+      <div class="grid two">
+        <div class="card">
+          <h3>物体检测 YOLOv8 —— 图里有什么物体</h3>
+          <p class="hint">在图中框出具体物体并计数：人、猫狗、汽车、食物等 80 类。
+          结果是"有没有、有几个"，精确但类别有限。</p>
+          <label class="switch-row"><span>启用</span>
+            <input type="checkbox" id="cfg-detect-enabled" class="switch"></label>
+          <label>检测模型
+            <select id="cfg-detect-model"></select></label>
+          <label>置信度阈值 <span class="mono" id="v-detect-conf"></span>
+            <input type="range" id="cfg-detect-conf" min="0.1" max="0.8" step="0.05"></label>
+          <label>单图标签上限
+            <input type="number" id="cfg-detect-max" min="1" max="40"></label>
+          <h3 style="margin-top:20px">CLIP 语义识别 —— 什么场景、在做什么</h3>
+          <p class="hint">对整张图做语义理解：海边日落、生日聚会、发票截图、金毛犬…
+          词表可自由编辑（模型与词表页）。与 YOLO <b>互补</b>：YOLO 管"有什么物体"，
+          CLIP 管"在什么场景做什么事"。它同时生成图片向量，支撑"图片搜索"页的
+          自然语言搜图。<b>建议两者都开。</b></p>
+          <label class="switch-row"><span>启用（推荐）</span>
+            <input type="checkbox" id="cfg-clip-enabled" class="switch"></label>
+          <label>CLIP 模型
+            <select id="cfg-clip-model"></select></label>
+          <p class="hint"><b>cnclip.onnx</b>（中文CLIP ViT-L，量化版）：中文概念识别
+          明显更准，推荐照片库以中文为主时使用，单张约 1~3 秒；
+          <b>model.onnx</b>（英文 CLIP B/32）：更快（约 0.5~1 秒），物体/英文场景尚可。
+          切换模型后建议"重新分析(替换)"，否则新旧向量不互通（语义搜索只认当前模型）。</p>
+          <label>单图标签上限
+            <input type="number" id="cfg-clip-max" min="1" max="20"></label>
+        </div>
+        <div class="card">
+          <h3>文字识别 OCR —— 图里写了什么字</h3>
+          <p class="hint">识别中英文文字（发票号、单据、聊天截图…）。识别出的
+          关键词会写入 Photos 标签（可搜索），<b>完整原文</b>始终保存在本地，
+          在"图片搜索"页搜任意片段都能命中，不受下面上限限制。</p>
+          <label class="switch-row"><span>启用</span>
+            <input type="checkbox" id="cfg-ocr-enabled" class="switch"></label>
+          <label>文本行置信度
+            <input type="number" id="cfg-ocr-conf" min="0.1" max="0.95" step="0.05"></label>
+          <label>关键词最短长度
+            <input type="number" id="cfg-ocr-minlen" min="1" max="10"></label>
+          <label>单图写入标签的关键词数上限
+            <input type="number" id="cfg-ocr-maxkw" min="1" max="60"></label>
+          <p class="hint">设上限的原因：一张截图可能识别出几十行文字，若全部写成
+          Photos 标签会把标签列表撑爆（App 的标签搜索建议会变得很乱）。
+          因此只把最重要的前 N 个词写入标签，其余内容仍在本地全文索引里可搜。</p>
+          <h3 style="margin-top:20px">视频分析</h3>
+          <p class="hint">对视频按间隔抽帧，用上面的 YOLO 识别每帧物体后合并。
+          CPU 消耗大，默认关闭。</p>
+          <label class="switch-row"><span>启用（CPU 消耗大）</span>
+            <input type="checkbox" id="cfg-video-enabled" class="switch"></label>
+          <label>抽帧间隔（秒）<input type="number" id="cfg-video-int" min="1" max="60"></label>
+          <label>每视频最多帧数<input type="number" id="cfg-video-max" min="1" max="60"></label>
+        </div>
+      </div>
+      <div class="card">
+        <h3>标签与扫描</h3>
+        <p class="hint">所有修改在<b>下一个任务</b>生效，不影响正在运行的任务
+        （每个任务使用启动时的配置快照，保证行为一致）。</p>
+        <div class="grid three">
+          <label>标签显示语言
+            <select id="cfg-lang">
+              <option value="bilingual">中英双语</option>
+              <option value="zh">中文</option>
+              <option value="en">English</option>
+            </select></label>
+          <label>标签前缀（可区分 AI 标签）<input id="cfg-prefix" placeholder="如 AI·（留空则无）"></label>
+          <label>增量轮询（分钟，0=关闭）<input type="number" id="cfg-poll" min="0" max="1440"></label>
+          <label>每批写库数量<input type="number" id="cfg-batch" min="10" max="500"></label>
+          <label>单张照片标签总量上限（三引擎合并后）
+            <input type="number" id="cfg-maxtags" min="3" max="40"></label>
+          <label class="switch-row"><span>Dry-run（只分析不写库）</span>
+            <input type="checkbox" id="cfg-dryrun" class="switch"></label>
+          <label class="switch-row"><span>写库前自动备份</span>
+            <input type="checkbox" id="cfg-backup" class="switch"></label>
+        </div>
+        <p class="hint">Dry-run 打开后，新任务的识别结果只保存在本地、不写入 Photos；
+        关闭后点仪表盘的"补写标签"即可一次性落库（不重复推理）。</p>
+        <div class="actions right">
+          <button class="btn primary" id="btn-save-settings">保存设置</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 数据库 ============ -->
+    <section class="tab" id="tab-db">
+      <div class="grid two">
+        <div class="card">
+          <h3>数据库连接</h3>
+          <label>连接方式
+            <select id="cfg-transport">
+              <option value="ssh">SSH → psql（推荐，零侵入）</option>
+              <option value="tcp">TCP 直连 PostgreSQL</option>
+            </select></label>
+          <div id="ssh-box">
+            <div class="grid two">
+              <label>主机<input id="cfg-ssh-host" placeholder="127.0.0.1"></label>
+              <label>端口<input type="number" id="cfg-ssh-port"></label>
+              <label>SSH 用户（需管理员组）<input id="cfg-ssh-user"></label>
+              <label>SSH 密码<input type="password" id="cfg-ssh-pw" placeholder="留空不变"></label>
+            </div>
+            <label class="switch-row"><span>使用 sudo -u postgres 执行 psql</span>
+              <input type="checkbox" id="cfg-ssh-sudo" class="switch"></label>
+          </div>
+          <div id="tcp-box" class="hidden">
+            <div class="grid two">
+              <label>主机<input id="cfg-tcp-host"></label>
+              <label>端口<input type="number" id="cfg-tcp-port"></label>
+              <label>数据库用户<input id="cfg-tcp-user"></label>
+              <label>密码<input type="password" id="cfg-tcp-pw" placeholder="留空不变"></label>
+            </div>
+            <p class="hint">TCP 模式需自行开启 PG 远程访问并建角色（synology-tagger 方式），改动 DSM 配置，风险自担。</p>
+          </div>
+          <div class="actions">
+            <button class="btn" id="btn-save-db">保存连接</button>
+            <button class="btn primary" id="btn-test-db">测试连接</button>
+            <button class="btn" id="btn-backup">立即备份</button>
+          </div>
+          <div id="db-test-result" class="report hidden"></div>
+          <h3 style="margin-top:22px">备份文件（config/backups/）</h3>
+          <div id="backup-list" class="mount-list"><span class="muted">加载中…</span></div>
+          <div class="actions right">
+            <button class="btn" id="btn-backup-refresh">刷新列表</button>
+          </div>
+          <p class="hint">还原 = 用备份覆盖该库现有数据（高危）。点击"还原"需再次输入
+          完整文件名确认；还原在后台执行（gunzip → psql），进行中会拒绝扫描任务。</p>
+        </div>
+        <div class="card">
+          <h3>照片目录挂载</h3>
+          <p class="hint">容器会<b>自动递归索引</b>以下目录的全部媒体文件，多用户/子目录无需逐个配置。
+          默认 <code>/photos</code>（compose 把 homes 挂到 <code>/photos/homes</code>），每行一个：</p>
+          <textarea id="cfg-mounts" rows="5" class="mono" placeholder="/photos"></textarea>
+          <div id="mount-status" class="mount-list"></div>
+          <div class="actions right">
+            <button class="btn primary" id="btn-save-mounts">保存挂载</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 模型与词表 ============ -->
+    <section class="tab" id="tab-models">
+      <div class="grid two">
+        <div class="card">
+          <h3>模型管理</h3>
+          <div id="model-lists" class="small"></div>
+          <h3 style="margin-top:20px">上传自定义 YOLO ONNX</h3>
+          <input type="file" id="model-file" accept=".onnx">
+          <button class="btn" id="btn-upload" style="margin-top:10px">上传</button>
+          <p class="hint">上传后到"识别设置"里切换模型。模型更换后建议执行"重新分析(替换)"。</p>
+        </div>
+        <div class="card">
+          <h3>CLIP 词表（识别类别，中文/英文）</h3>
+          <p class="hint">这是 CLIP 引擎<b>能识别的全部类别清单</b>——清单里有什么，
+          照片才能被打上什么标签，清单外的一律识别不出。每行一个：
+          <code>中文,英文</code>（中文=写入 Photos 的标签名，英文=匹配用的提示词）。
+          按你的照片内容增删类别，例如加 <code>钓鱼,fishing by the water</code>
+          后钓鱼照就会被自动打上"钓鱼"。只影响 CLIP 引擎（YOLO/OCR 不受影响）。
+          保存后版本+1，<b>新扫描立即生效</b>，历史照片需"重新分析(替换)"。</p>
+          <textarea id="cfg-vocab" rows="16" class="mono small-text"></textarea>
+          <div class="actions right">
+            <span class="muted small" id="vocab-count"></span>
+            <button class="btn primary" id="btn-save-vocab">保存词表</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 结果预览 ============ -->
+    <section class="tab" id="tab-recent">
+      <div class="card">
+        <div class="search-modes">
+          <span class="muted small">最近分析的照片与标签（扫描时自动刷新，用于边扫边检查效果）</span>
+          <span style="flex:1"></span>
+          <label style="display:flex;align-items:center;gap:6px;margin:0" class="muted small">状态
+            <select id="recent-status" style="width:auto;margin:0">
+              <option value="">全部</option>
+              <option value="written">written(已写库)</option>
+              <option value="analyzed">analyzed(待写库)</option>
+              <option value="empty">empty(无标签)</option>
+              <option value="write_error">write_error</option>
+              <option value="error">error</option>
+            </select></label>
+          <label style="display:flex;align-items:center;gap:6px;margin:0" class="muted small">自动刷新
+            <input type="checkbox" id="recent-auto" class="switch" checked></label>
+        </div>
+        <div id="recent-results" class="results"></div>
+      </div>
+    </section>
+
+    <!-- ============ 搜索 ============ -->
+    <section class="tab" id="tab-search">
+      <div class="card">
+        <div class="search-bar">
+          <input id="search-q" placeholder="试试：海边日落 / 发票 / 柯基 / 或任意自然语句…">
+          <button class="btn primary" id="btn-search">搜索</button>
+        </div>
+        <div class="search-modes">
+          <span class="chip ghost" id="search-mode-chip">–</span>
+          <span class="muted small">优先 CLIP 语义搜索（Immich 同款思路），无结果时退回标签/OCR 关键词搜索</span>
+        </div>
+        <div id="search-results" class="results"></div>
+      </div>
+    </section>
+
+    <!-- ============ 日志 ============ -->
+    <section class="tab" id="tab-logs">
+      <div class="card">
+        <div class="actions right"><button class="btn" id="btn-clear-view">清空显示</button></div>
+        <div id="log-view" class="logview mono"></div>
+      </div>
+    </section>
+  </main>
+</div>
+<div id="toast" class="toast hidden"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>

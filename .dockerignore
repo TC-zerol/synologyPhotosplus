@@ -1,0 +1,6 @@
+config/
+tests/
+__pycache__/
+*.pyc
+.git/
+*.md

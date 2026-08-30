@@ -1,0 +1,17 @@
+fastapi>=0.115,<1.0
+uvicorn>=0.30,<1.0
+onnxruntime>=1.18,<2.0
+opencv-python-headless==4.10.0.84
+numpy>=1.26,<2.0
+pillow>=10.3,<11.0
+pillow-heif>=0.16,<1.0
+paramiko>=3.4,<4.0
+psycopg2-binary>=2.9,<3.0
+tokenizers>=0.19,<1.0
+python-multipart>=0.0.9
+# rapidocr-onnxruntime 依赖（为避免它引入带 GUI 依赖的 opencv-python，
+# 在 Dockerfile 中以 --no-deps 安装 rapidocr，这里手动列出其真实依赖）
+shapely>=2.0,<3.0
+pyclipper>=1.3,<2.0
+PyYAML>=6.0,<7.0
+six>=1.16
