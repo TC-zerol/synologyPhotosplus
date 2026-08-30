@@ -98,27 +98,42 @@ input[type=text], input[type=number], input[type=password], input:not([type]), s
 }
 input:focus, select:focus, textarea:focus { border-color: rgba(108,123,255,.6); }
 
-/* ---------- 自绘下拉（原生 select 弹层在部分浏览器是白底，不可控） ---------- */
-.dd { position: relative; }
-.dd-btn {
-  width: 100%; margin-top: 5px; padding: 9px 11px;
+/* ---------- Tom Select 深色皮肤 ---------- */
+.ts-wrapper.single .ts-control {
+  width: 100%; margin-top: 5px; padding: 9px 34px 9px 11px;
   background: rgba(255,255,255,.045); color: var(--text);
   border: 1px solid var(--card-border); border-radius: 10px;
-  font-size: 13px; text-align: left; cursor: pointer;
-  display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  font-size: 13px; min-height: 0; cursor: pointer;
 }
-.dd-btn::after { content: "▾"; color: var(--muted); flex-shrink: 0; }
-.dd.open .dd-btn { border-color: rgba(108,123,255,.6); }
-.dd-list {
-  position: absolute; top: calc(100% + 4px); left: 0; right: 0;
-  background: #151a24; border: 1px solid var(--card-border);
-  border-radius: 10px; max-height: 260px; overflow-y: auto; z-index: 40;
-  display: none; box-shadow: 0 10px 30px rgba(0,0,0,.5);
+.ts-wrapper.single.input-active .ts-control,
+.ts-wrapper.focus .ts-control {
+  background: rgba(255,255,255,.045); border-color: rgba(108,123,255,.6);
+  box-shadow: none;
 }
-.dd.open .dd-list { display: block; }
-.dd-item { padding: 9px 12px; font-size: 13px; color: var(--text); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.dd-item:hover { background: rgba(108,123,255,.15); }
-.dd-item.active { color: var(--accent2); }
+.ts-wrapper.single .ts-control:after {
+  border-top-color: var(--muted) !important; margin-top: -3px !important;
+}
+.ts-wrapper.single .ts-control > input,
+.ts-wrapper .ts-control > input {
+  color: var(--text); font-size: 13px;
+}
+.ts-dropdown {
+  margin-top: 4px; background: #151a24; color: var(--text);
+  border: 1px solid var(--card-border); border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.5); z-index: 60; overflow: hidden;
+}
+.ts-dropdown .option {
+  padding: 9px 12px; font-size: 13px; color: var(--text); border-bottom: none;
+}
+.ts-dropdown .option:hover,
+.ts-dropdown .option.active {
+  background: rgba(108,123,255,.18); color: #fff;
+}
+.ts-dropdown .optgroup-header {
+  background: #10141d; color: var(--muted); border-bottom: 1px solid var(--card-border);
+}
+.ts-dropdown [data-selectable].option:first-child { border-radius: 10px 10px 0 0; }
+.ts-dropdown [data-selectable].option:last-child { border-radius: 0 0 10px 10px; }
 textarea { resize: vertical; line-height: 1.5; }
 input[type=range] { margin-top: 8px; accent-color: var(--accent); }
 .switch-row { display: flex; align-items: center; justify-content: space-between; }

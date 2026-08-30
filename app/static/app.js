@@ -34,6 +34,24 @@ function toast(msg, isErr = false) {
   t._tm = setTimeout(() => t.classList.add("hidden"), 3200);
 }
 
+/* ---------------- 下拉框（Tom Select，成熟组件，深色皮肤见 style.css） ---------------- */
+function initSelects() {
+  if (typeof TomSelect === "undefined") { console.error("TomSelect 未加载"); return; }
+  document.querySelectorAll("select").forEach((sel) => {
+    if (sel.tomselect) return;
+    sel.tomselect = new TomSelect(sel, {
+      controlInput: null,        // 不显示搜索输入框，纯下拉
+      maxOptions: 1000,
+      openOnFocus: true,
+      allowEmptyOption: true,
+    });
+  });
+}
+function refreshSelects() {
+  // 选项被动态重建（如模型列表）后调用，让组件重新读取 <option>
+  document.querySelectorAll("select").forEach((s) => s.tomselect && s.tomselect.sync());
+}
+
 /* ---------------- 登录 ---------------- */
 async function tryLogin(pw) {
   try {
@@ -81,7 +99,7 @@ async function boot() {
     fillDb(CFG);
     fillMounts(data.mounts);
     fillVocab(data.vocab);
-    ddSyncAll();
+    refreshSelects();
     $("#foot-status").textContent = "已连接";
     $("#ws-dot").classList.remove("bad");
   } catch (e) {
@@ -193,6 +211,7 @@ function fillModels(models) {
   const opt = (m) => `<option>${(m && m.name) ?? m}</option>`;
   y.innerHTML = (models.yolo || []).map(opt).join("");
   c.innerHTML = (models.clip || []).map(opt).join("");
+  refreshSelects();
 }
 
 function fillSettings(cfg) {
@@ -569,62 +588,6 @@ async function tick() {
 }
 
 
-/* ---------------- 自绘下拉（任何浏览器都深色可读） ---------------- */
-function enhanceSelects() {
-  document.querySelectorAll("select").forEach((sel) => {
-    if (sel.dataset.dd) return;
-    sel.dataset.dd = "1";
-    sel.style.display = "none";
-    const wrap = document.createElement("div");
-    wrap.className = "dd";
-    sel.parentNode.insertBefore(wrap, sel);
-    wrap.appendChild(sel);
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "dd-btn";
-    const list = document.createElement("div");
-    list.className = "dd-list";
-    wrap.appendChild(btn);
-    wrap.appendChild(list);
-    const sync = () => {
-      const o = sel.options[sel.selectedIndex];
-      btn.textContent = o ? o.textContent : "";
-    };
-    sel._ddSync = sync;
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const wasOpen = wrap.classList.contains("open");
-      document.querySelectorAll(".dd.open").forEach((d) => d.classList.remove("open"));
-      if (!wasOpen) {
-        list.innerHTML = "";
-        [...sel.options].forEach((o) => {
-          const it = document.createElement("div");
-          it.className = "dd-item" + (o.value === sel.value ? " active" : "");
-          it.textContent = o.textContent;
-          it.addEventListener("click", () => {
-            sel.value = o.value;
-            sel.dispatchEvent(new Event("change", { bubbles: true }));
-            sync();
-            wrap.classList.remove("open");
-          });
-          list.appendChild(it);
-        });
-        wrap.classList.add("open");
-      }
-    });
-    sync();
-  });
-}
-function ddSyncAll() {
-  document.querySelectorAll("select").forEach((s) => s._ddSync && s._ddSync());
-}
-document.addEventListener("click", () =>
-  document.querySelectorAll(".dd.open").forEach((d) => d.classList.remove("open")));
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape")
-    document.querySelectorAll(".dd.open").forEach((d) => d.classList.remove("open"));
-});
-
-enhanceSelects();
+initSelects();
 boot();
 setInterval(tick, 2000);   // tick 内含：日志页激活时增量拉取并跟随滚动
