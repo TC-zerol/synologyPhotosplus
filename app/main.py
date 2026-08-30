@@ -206,6 +206,8 @@ def _bg_start(kind: str, fn) -> bool:
             _BG[kind]["error"] = str(e)
         finally:
             _BG[kind]["running"] = False
+            if kind == "restore":
+                store.set_setting("restore_running", "")
 
     threading.Thread(target=wrap, daemon=True, name=f"sp-{kind}").start()
     return True
@@ -320,6 +322,7 @@ async def db_restore(request: Request):
         raise HTTPException(409, "备份进行中，请稍后再还原")
     if not _bg_start("restore", lambda: dbaccess.transport().restore(db, path)):
         raise HTTPException(409, "还原已在进行中")
+    store.set_setting("restore_running", "1")
     store.log("warn", f"开始还原 {db} ← {fn}")
     return {"started": True, "db": db}
 

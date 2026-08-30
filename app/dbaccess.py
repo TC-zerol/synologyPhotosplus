@@ -99,7 +99,7 @@ class SSHTransport:
                 if stdin_data:
                     chan.sendall(stdin_data.encode("utf-8"))
                 chan.shutdown_write()
-                out = bytearray()
+                out, err = bytearray(), bytearray()
                 while True:
                     got = False
                     if chan.recv_ready():
@@ -109,7 +109,7 @@ class SSHTransport:
                             chunk_cb(data)
                         got = True
                     if chan.recv_stderr_ready():
-                        chan.recv_stderr(1 << 16)
+                        err += chan.recv_stderr(1 << 16)
                         got = True
                     if not got:
                         if chan.exit_status_ready() and not chan.recv_ready() \
@@ -119,7 +119,8 @@ class SSHTransport:
                 code = chan.recv_exit_status()
                 text = ANSI.sub("", out.decode("utf-8", "replace"))
                 if code != 0:
-                    raise DBError(f"命令失败(exit={code})")
+                    etext = ANSI.sub("", err.decode("utf-8", "replace")).strip()
+                    raise DBError(f"命令失败(exit={code}): {etext[-500:] or text[-200:]}")
                 return text
             except DBError:
                 raise
@@ -367,7 +368,8 @@ def close_transport():
 
 
 def _escape(s: str) -> str:
-    return s.replace("'", "''").replace("\\", "\\\\")
+    # PG 默认 standard_conforming_strings=on，反斜杠是字面量；只需处理单引号
+    return s.replace("'", "''")
 
 
 ENUM_SQL = ("SELECT u.id, u.filename, u.type, COALESCE(u.createtime, 0) AS "

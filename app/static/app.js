@@ -414,10 +414,6 @@ $("#btn-backup").onclick = async () => {
 };
 
 /* ---------------- 备份列表与还原 ---------------- */
-function fmtSize(n) {
-  return n > 1 << 20 ? (n / (1 << 20)).toFixed(1) + " MB"
-       : n > 1024 ? (n / 1024).toFixed(1) + " KB" : n + " B";
-}
 async function loadBackups() {
   const el = $("#backup-list");
   try {

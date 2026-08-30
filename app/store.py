@@ -160,6 +160,8 @@ def mark_processed(db_name: str, unit_id: int, status: str, model_ver: str,
          rel_path or "", time.time(), time.time(), retries, owner_id,
          engines if engines else None))
     if embed is not None:
+        with _lock:
+            _emb_cache["count"] = None   # 使语义搜索的向量缓存失效
         execute("INSERT INTO embeddings (db_name, unit_id, vec, model) "
                 "VALUES (?,?,?,?) "
                 "ON CONFLICT(db_name, unit_id) DO UPDATE SET vec=excluded.vec, "
@@ -169,6 +171,8 @@ def mark_processed(db_name: str, unit_id: int, status: str, model_ver: str,
 
 def save_embedding(db_name: str, unit_id: int, vec_bytes: bytes,
                    model: str = None):
+    with _lock:
+        _emb_cache["count"] = None
     execute("INSERT INTO embeddings (db_name, unit_id, vec, model) "
             "VALUES (?,?,?,?) "
             "ON CONFLICT(db_name, unit_id) DO UPDATE SET vec=excluded.vec, "

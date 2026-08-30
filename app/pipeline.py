@@ -161,7 +161,7 @@ class Pipeline:
                 continue
             with self._lock:
                 busy = self._job is not None and self._job.finished is None
-            if busy or time.time() - self._last_scan < interval * 60:
+            if busy or store.get_setting("restore_running") == "1"                     or time.time() - self._last_scan < interval * 60:
                 continue
             try:
                 self.enqueue("incremental")
@@ -306,7 +306,9 @@ class Pipeline:
                                               else None))
                     if result["tags"] and result["status"] == "analyzed":
                         batch.append({"db": db, "unit_id": u["unit_id"],
-                                      "owner_id": u["owner_id"],
+                                      "owner_id": (cfg["db"].get("force_tag_owner_id")
+                                                   if cfg["db"].get("force_tag_owner_id") is not None
+                                                   else u["owner_id"]),
                                       "tags": result["tags"]})
                     job.done += 1
                 except Exception as e:
@@ -462,7 +464,6 @@ class Pipeline:
                     it["db"], it["unit_id"], "analyzed", model_version(cfg),
                     [{"n": n, "nn": nn, "s": s} for n, nn, s in it["tags"]], None, None,
                     owner_id=it["owner_id"])
-            job.tags_written += sum(len(i["tags"]) for i in batch)
             store.log("info", f"[dry-run] 未写库 {len(batch)} 项"
                               f"（结果已保存，关闭 dry-run 后用\"补写标签\"落库）")
             return
@@ -530,12 +531,8 @@ class Pipeline:
             store.log("warn", f"备份失败（继续写库）: {e}")
             job._backup_done = True   # 避免每批都重试备份阻塞任务
 
-    def _flush_pending_records(self, job: _Job, cfg: dict):
-        """扫描前先把上次遗留的"已分析未写库"记录补写完成（不重新推理）。
-
-        若待写结果是用旧模型/词表/参数分析的（model_ver 不一致），
-        则不写库——转为待重分析状态，本轮扫描自动用新模型重跑。
-        """
+    def _invalidate_stale_pending(self, cfg: dict):
+        """待写结果若来自旧模型/词表，转为待重分析（下次计划自动重跑）。"""
         cur = model_version(cfg)
         outdated = store.query(
             "SELECT db_name, unit_id FROM processed "
@@ -547,6 +544,15 @@ class Pipeline:
                     "WHERE db_name=? AND unit_id=?", (r["db_name"], r["unit_id"]))
             store.log("info", f"{len(outdated)} 条待写结果来自旧模型/词表，"
                               f"不写入库，将自动用当前模型重新分析")
+        return len(outdated)
+
+    def _flush_pending_records(self, job: _Job, cfg: dict):
+        """扫描前先把上次遗留的"已分析未写库"记录补写完成（不重新推理）。
+
+        若待写结果是用旧模型/词表/参数分析的（model_ver 不一致），
+        则不写库——转为待重分析状态，本轮扫描自动用新模型重跑。
+        """
+        self._invalidate_stale_pending(cfg)
         rows = store.query(
             "SELECT db_name, unit_id, owner_id, tags FROM processed "
             "WHERE status IN ('analyzed','write_error')")
@@ -572,6 +578,7 @@ class Pipeline:
 
     def _write_pending(self, job: _Job, cfg: dict):
         """把"已分析未写库"的项写入 synofoto（不重新推理）。"""
+        self._invalidate_stale_pending(cfg)
         rows = store.query(
             "SELECT db_name, unit_id, owner_id, tags FROM processed "
             "WHERE status IN ('analyzed','write_error') ORDER BY db_name, unit_id")
