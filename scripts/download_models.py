@@ -8,13 +8,14 @@
 用法：python scripts/download_models.py [--all]
   默认只下载默认档位所需的模型；--all 额外下载可选项（yolov8s 等）
 """
+import argparse
 import hashlib
 import os
 import sys
 import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-MODEL_DIR = os.path.join(os.path.dirname(HERE), "app", "models")
+DEFAULT_MODEL_DIR = os.path.join(os.path.dirname(HERE), "app", "models")
 
 HF_ENDPOINTS = [
     os.environ.get("HF_ENDPOINT", "").rstrip("/"),
@@ -63,12 +64,18 @@ def fetch(url: str, dest: str) -> None:
 
 
 def main() -> int:
-    want_all = "--all" in sys.argv
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--all", action="store_true", help="包含可选模型")
+    ap.add_argument("--dest", default=DEFAULT_MODEL_DIR,
+                    help="模型保存目录（默认仓库内 app/models）")
+    args = ap.parse_args()
+    want_all = args.all
+    model_dir = args.dest
     failed = []
     for rel, urls, sha, optional in FILES:
         if optional and not want_all:
             continue
-        dest = os.path.join(MODEL_DIR, rel)
+        dest = os.path.join(model_dir, rel)
         os.makedirs(os.path.dirname(dest), exist_ok=True)
         if os.path.isfile(dest) and sha256_of(dest) == sha:
             print(f"[skip] {rel} 已存在且校验通过")
