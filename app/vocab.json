@@ -1,6 +1,6 @@
 {
  "_comment": "CLIP 零样本标签词表。可在网页端编辑（保存到 /config/vocab.json 覆盖）。en 用于 CLIP 提示词，zh 写入标签名。",
- "version": 2,
+ "version": 3,
  "tags": [
   {
    "zh": "狗",
@@ -723,10 +723,6 @@
    "en": "group photo"
   },
   {
-   "zh": "旅行",
-   "en": "travel sightseeing"
-  },
-  {
    "zh": "徒步登山",
    "en": "hiking mountain trail"
   },
@@ -1351,24 +1347,8 @@
    "en": "building blocks creation"
   },
   {
-   "zh": "白天户外",
-   "en": "outdoors during daytime"
-  },
-  {
-   "zh": "室内",
-   "en": "indoors"
-  },
-  {
    "zh": "美食特写",
    "en": "food close-up"
-  },
-  {
-   "zh": "俯拍",
-   "en": "top-down flat lay view"
-  },
-  {
-   "zh": "微距",
-   "en": "macro close-up shot"
   },
   {
    "zh": "黑白照片",
@@ -1591,10 +1571,6 @@
    "en": "school sports day"
   },
   {
-   "zh": "军训",
-   "en": "military training students"
-  },
-  {
    "zh": "儿童节",
    "en": "childrens day celebration"
   },
@@ -1773,6 +1749,122 @@
   {
    "zh": "泡脚",
    "en": "foot soaking basin"
+  },
+  {
+   "zh": "银行卡",
+   "en": "bank card"
+  },
+  {
+   "zh": "护照",
+   "en": "passport"
+  },
+  {
+   "zh": "户型图",
+   "en": "floor plan"
+  },
+  {
+   "zh": "奖杯奖牌",
+   "en": "trophy medal award"
+  },
+  {
+   "zh": "羊驼",
+   "en": "alpaca"
+  },
+  {
+   "zh": "豹子",
+   "en": "leopard"
+  },
+  {
+   "zh": "摩天轮",
+   "en": "ferris wheel"
+  },
+  {
+   "zh": "亭子",
+   "en": "chinese pavilion"
+  },
+  {
+   "zh": "塔",
+   "en": "tower landmark"
+  },
+  {
+   "zh": "草地",
+   "en": "green grass lawn"
+  },
+  {
+   "zh": "城市天际线",
+   "en": "city skyline skyline view"
+  },
+  {
+   "zh": "帽子",
+   "en": "hat cap"
+  },
+  {
+   "zh": "裤子",
+   "en": "trousers pants"
+  },
+  {
+   "zh": "空调",
+   "en": "air conditioner"
+  },
+  {
+   "zh": "洗衣机",
+   "en": "washing machine"
+  },
+  {
+   "zh": "气球",
+   "en": "balloons"
+  },
+  {
+   "zh": "黑板",
+   "en": "blackboard classroom"
+  },
+  {
+   "zh": "瓷器茶具",
+   "en": "porcelain tea set"
+  },
+  {
+   "zh": "手机",
+   "en": "smartphone in hand"
+  },
+  {
+   "zh": "婴儿车",
+   "en": "baby stroller"
+  },
+  {
+   "zh": "无人机",
+   "en": "drone quadcopter"
+  },
+  {
+   "zh": "蜡烛",
+   "en": "candles candlelight"
+  },
+  {
+   "zh": "颁奖领奖",
+   "en": "award ceremony prize"
+  },
+  {
+   "zh": "香蕉",
+   "en": "banana bunch"
+  },
+  {
+   "zh": "苹果",
+   "en": "apple fruit"
+  },
+  {
+   "zh": "酒",
+   "en": "wine bottle drinks"
+  },
+  {
+   "zh": "付款码",
+   "en": "payment QR code on screen"
+  },
+  {
+   "zh": "转账记录",
+   "en": "money transfer screenshot"
+  },
+  {
+   "zh": "表情包",
+   "en": "meme sticker image"
   }
  ]
 }
