@@ -24,6 +24,15 @@ from .matcher import MATCHER
 ERROR_RETRY_LIMIT = 3
 
 
+def fmt_hours(seconds: float) -> str:
+    s = int(seconds)
+    if s >= 3600:
+        return f"{s // 3600}小时{(s % 3600) // 60}分"
+    if s >= 60:
+        return f"{s // 60}分{s % 60}秒"
+    return f"{s}秒"
+
+
 def _missing_engines(st: dict, cfg: dict) -> list:
     """该 unit 上当前启用但上次失败的引擎列表（用于单引擎补全）。"""
     try:
@@ -652,6 +661,14 @@ class Pipeline:
         if job.done > 0 and job.done % 10 == 0:
             rate = job.done / max(1e-9, time.time() - t0)
             job.eta_sec = int((job.total - job.done) / max(rate, 1e-9))
+        # 每 50 项输出一次分析速率（区分"分析慢"与"写库慢"的关键证据）
+        if job.done > 0 and job.done % 50 == 0 and job.phase == "analyze":
+            elapsed = time.time() - t0
+            rate = job.done / max(1e-9, elapsed)
+            store.log("info", f"分析进度 {job.done}/{job.total}，"
+                              f"平均 {1/max(rate,1e-9):.1f}s/张"
+                              f"（含路径匹配与落账），"
+                              f"预计剩余 {fmt_hours((job.total - job.done) / max(rate, 1e-9))}")
 
     def _finish(self, job: _Job, canceled: bool = False):
         job.phase = "done"
