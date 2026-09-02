@@ -21,6 +21,12 @@ RUN pip install -r /tmp/requirements.txt \
 COPY run.py /app/run.py
 COPY app /app/app
 
+# GitHub 克隆不带二进制模型（.gitignore 排除）：构建时按 sha256 校验下载；
+# 国内网络可加 build arg：--build-arg HF_ENDPOINT=https://hf-mirror.com
+ARG HF_ENDPOINT=""
+ENV HF_ENDPOINT=${HF_ENDPOINT}
+RUN python /app/scripts/download_models.py --all ||     (echo "模型下载失败：检查网络，或使用 --build-arg HF_ENDPOINT=https://hf-mirror.com" && exit 1)
+
 VOLUME /config
 EXPOSE 47310
 
