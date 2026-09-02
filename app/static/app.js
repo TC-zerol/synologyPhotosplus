@@ -141,8 +141,11 @@ function renderStats(data) {
   $("#st-written-sub").textContent =
     `成功 ${s.written ?? 0} · 无标签 ${s.empty ?? 0} · 共记录 ${s.processed ?? 0}`;
   $("#st-tags").textContent = s.tag_links ?? "–";
-  $("#st-tags-sub").textContent = (s.tag_links ?? 0) === 0 && (s.pending_write ?? 0) > 0
-    ? "有结果待落库（Dry-run 或写库失败？）" : "general_tag 关联关系";
+  const linked = s.tag_linked_units ?? 0;
+  const avg = linked ? ((s.tag_links ?? 0) / linked).toFixed(1) : "–";
+  const maxP = s.tag_max_per_photo ?? 0;
+  $("#st-tags-sub").textContent =
+    `关联照片 ${linked} · 平均每图 ${avg} · 单图最多 ${maxP}`;
   const exhausted = s.error_exhausted ?? 0;
   $("#st-pending").textContent = (s.pending_write ?? 0) + (s.error ?? 0);
   $("#st-pending-sub").textContent = `待补写 ${s.pending_write ?? 0} · 失败 ${s.error ?? 0}`

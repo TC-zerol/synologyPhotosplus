@@ -270,10 +270,16 @@ def stats() -> dict:
         "SELECT COUNT(*) AS c FROM processed WHERE status='error' "
         "AND retries >= 3")["c"]
     tagged = query_one("SELECT COUNT(*) AS c FROM tag_rows")["c"]
+    linked = query_one(
+        "SELECT COUNT(DISTINCT db_name || ':' || unit_id) AS c FROM tag_rows")["c"]
+    max_per = query_one(
+        "SELECT MAX(c) AS m FROM (SELECT COUNT(*) AS c FROM tag_rows "
+        "GROUP BY db_name, unit_id)")["m"] or 0
     vecs = query_one("SELECT COUNT(*) AS c FROM embeddings")["c"]
     return {"processed": total, "written": written, "empty": empty,
             "pending_write": pending, "error": err, "error_exhausted": exhausted,
-            "tag_links": tagged, "embeddings": vecs}
+            "tag_links": tagged, "tag_linked_units": linked,
+            "tag_max_per_photo": max_per, "embeddings": vecs}
 
 
 def stale_pending_count(current_model_ver: str) -> int:
