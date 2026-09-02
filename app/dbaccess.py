@@ -428,7 +428,11 @@ def build_write_script(items: list) -> str:
         for name, norm, _s in it["tags"]:
             tag_keys.add((owner, name, norm))
         per_item.append((it["unit_id"], owner, [t[0] for t in it["tags"]]))
-    lines = ["BEGIN;"]
+    # 一次性给关系表的 id_general_tag 建索引：count 修正/关联去重都靠它，
+    # 大库（百万级关系行）没有它每次写批要全表扫几十遍（建一次，之后秒过）
+    lines = ["CREATE INDEX IF NOT EXISTS idx_sp_many_tag "
+             "ON many_unit_has_many_general_tag (id_general_tag);",
+             "BEGIN;"]
     if tag_keys:
         vals = ", ".join("({o}::int, '{n}'::text, '{nn}'::text)".format(
             o=o, n=_escape(n), nn=_escape(nn)) for o, n, nn in tag_keys)
@@ -460,13 +464,20 @@ def build_write_script(items: list) -> str:
             "ON gg.id_user = v.uid AND gg.name = v.nm "
             "WHERE NOT EXISTS (SELECT 1 FROM many_unit_has_many_general_tag m "
             "WHERE m.id_unit = v.u AND m.id_general_tag = gg.gid);")
+        # count 修正：单次分组聚合回填（旧写法每个标签做一次关联子查询，
+        # 在百万级关系表上等于每批几十次全表扫，是写库慢/系统卡的元凶）
         count_vals = ", ".join(
             sorted({"({}::int, '{}'::text)".format(o, _escape(n))
                     for _, o, names in per_item for n in names}))
         lines.append(
-            "UPDATE general_tag g SET count = "
-            "(SELECT COUNT(*) FROM many_unit_has_many_general_tag m "
-            "WHERE m.id_general_tag = g.id) "
+            "UPDATE general_tag g SET count = COALESCE(c.cnt, 0) "
+            "FROM (VALUES " + count_vals + ") AS v(uid, nm) "
+            "LEFT JOIN (SELECT m.id_general_tag, COUNT(*) AS cnt "
+            "FROM many_unit_has_many_general_tag m "
+            "JOIN general_tag g2 ON g2.id = m.id_general_tag "
+            "JOIN (VALUES " + count_vals + ") AS k(uid, nm) "
+            "ON g2.id_user = k.uid AND g2.name = k.nm "
+            "GROUP BY m.id_general_tag) AS c ON c.id_general_tag = g.id "
             "WHERE (g.id_user, g.name) IN (VALUES " + count_vals + ");")
     lines.append("COMMIT;")
     # SELECT 必须是最后一个语句：psycopg2(TCP 模式)只返回最后一个结果集。
