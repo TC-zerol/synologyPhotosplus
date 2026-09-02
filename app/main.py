@@ -509,17 +509,15 @@ async def serve_file(path: str):
         if resp:
             return resp
 
-    # 3) 后缀索引定位
-    if not MATCHER.file_count:
-        MATCHER.build_fs_index(mounts, cfg["scan"].get("exclude_dirs", []),
-                               set(IMAGE_EXTS) | set(VIDEO_EXTS),
-                               cfg["image"].get("min_bytes", 0))
-    hit = MATCHER.locate(rel)
-    if hit:
-        resp = _try(hit)
-        if resp:
-            return resp
-    raise HTTPException(404, "文件不存在（检查挂载配置）")
+    # 3) 后缀索引定位（索引已由扫描任务建好；这里绝不同步建索引——
+    #    async 路由里遍历全树会把整个 Web 服务卡住）
+    if MATCHER.file_count:
+        hit = MATCHER.locate(rel)
+        if hit:
+            resp = _try(hit)
+            if resp:
+                return resp
+    raise HTTPException(404, "文件不存在（检查挂载配置或先运行一次扫描）")
 
 
 # ---------------------------------------------------------------- 日志

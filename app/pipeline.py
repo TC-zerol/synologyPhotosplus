@@ -236,11 +236,14 @@ class Pipeline:
         # 但若某引擎上次失败，则进入"单引擎补全"清单）
         job.phase = "plan"
         model_ver = model_version(cfg)
+        # 一次性装载记账表（大库逐条查询=每轮上万次 SQLite 往返）
+        book = {(r["db_name"], r["unit_id"]): r
+                for r in store.query(
+                    "SELECT db_name, unit_id, status, retries, engines "
+                    "FROM processed")}
         work = []           # (db, unit, missing_engines 或 None)
         for db, u in all_units:
-            st = store.query_one(
-                "SELECT status, retries, engines FROM processed "
-                "WHERE db_name=? AND unit_id=?", (db, u["unit_id"]))
+            st = book.get((db, u["unit_id"]))
             if st and st["status"] in ("written", "empty"):
                 missing = _missing_engines(st, cfg)
                 if missing:

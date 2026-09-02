@@ -82,11 +82,12 @@ def _get() -> sqlite3.Connection:
     return _conn
 
 
-def execute(sql: str, params=()):
+def execute(sql: str, params=()) -> int:
     with _lock:
         c = _get()
-        c.execute(sql, params)
+        cur = c.execute(sql, params)
         c.commit()
+        return cur.lastrowid
 
 
 def query(sql: str, params=()):
@@ -101,8 +102,17 @@ def query_one(sql: str, params=()):
 
 
 def log(level: str, msg: str):
-    execute("INSERT INTO events (ts, level, msg) VALUES (?,?,?)",
-            (time.time(), level, msg[:2000]))
+    rid = execute("INSERT INTO events (ts, level, msg) VALUES (?,?,?)",
+                  (time.time(), level, msg[:2000]))
+    # 每 500 条顺手修剪一次，events 表不无限增长
+    if rid and rid % 500 == 0:
+        execute("DELETE FROM events WHERE id <= "
+                "(SELECT MAX(id) - 5000 FROM events)")
+
+
+def prune_events(keep: int = 5000):
+    execute("DELETE FROM events WHERE id <= (SELECT MAX(id) - ? FROM events)",
+            (keep,))
 
 
 def get_setting(key: str, default=None):

@@ -536,11 +536,16 @@ function statusChip(s) {
   const cls = s === "written" ? "ok" : (s === "error" || s === "write_error") ? "err" : "";
   return `<span class="chip ${cls}">${STATUS_CN[s] || s}</span>`;
 }
+let recentSig = "";
 async function loadRecent() {
   const el = $("#recent-results");
   const status = $("#recent-status").value;
   try {
     const r = await GET(`/api/recent?limit=60&status=${encodeURIComponent(status)}`);
+    // 数据没变化就不重绘（避免每 2 秒重建缩略图请求）
+    const sig = r.items.map((i) => i.unit_id + ":" + i.status + ":" + (i.processed_at || 0)).join("|");
+    if (sig === recentSig && el.childElementCount) return;
+    recentSig = sig;
     if (!r.items.length) {
       el.innerHTML = '<div class="muted" style="grid-column:1/-1">暂无分析记录——点"立即扫描"后这里会实时出现结果</div>';
       return;
@@ -558,7 +563,7 @@ async function loadRecent() {
     }).join("");
   } catch (e) {}
 }
-$("#recent-status").onchange = loadRecent;
+$("#recent-status").onchange = () => { recentSig = ""; loadRecent(); };
 
 /* ---------------- 搜索 ---------------- */
 $("#btn-search").onclick = doSearch;
