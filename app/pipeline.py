@@ -498,9 +498,9 @@ class Pipeline:
                 out = dbaccess.transport().exec_script(
                     db, dbaccess.build_write_script(items))
                 _t2 = time.time()
-                store.log("info", f"{db}: 写库脚本执行完成，解析到 "
-                                  f"{len(rows)} 行标签记录")
                 rows = dbaccess.parse_tag_rows(out)
+                store.log("info", f"{db}: 写库脚本执行完成（"
+                                  f"{_t2 - _t1:.2f}s），返回 {len(rows)} 行标签记录")
                 rows_map = {(owner, name): (rid, owner, name)
                             for rid, owner, name in rows}
                 expected = {(it["owner_id"] or 0, name)
