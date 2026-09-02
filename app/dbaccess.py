@@ -417,6 +417,17 @@ def list_databases() -> list:
     return transport().list_databases()
 
 
+def ensure_tag_index(db: str) -> None:
+    """关系表 id_general_tag 索引一次性创建（大库可能耗时数分钟，调用方记日志）。"""
+    sql = ("DO $$ BEGIN "
+           "IF NOT EXISTS (SELECT 1 FROM pg_indexes "
+           "WHERE indexname = 'idx_sp_many_tag') THEN "
+           "CREATE INDEX idx_sp_many_tag "
+           "ON many_unit_has_many_general_tag (id_general_tag); "
+           "END IF; END $$;")
+    transport().exec_script(db, sql)
+
+
 def build_write_script(items: list) -> str:
     """items: [{unit_id, owner_id, tags:[(name, normalized)]}]
     生成一个事务脚本：确保标签存在 -> 取回标签行 id -> 建立关联 -> 修正本批 count。
@@ -428,15 +439,7 @@ def build_write_script(items: list) -> str:
         for name, norm, _s in it["tags"]:
             tag_keys.add((owner, name, norm))
         per_item.append((it["unit_id"], owner, [t[0] for t in it["tags"]]))
-    # 一次性给关系表的 id_general_tag 建索引：count 修正/关联去重都靠它，
-    # 大库（百万级关系行）没有它每次写批要全表扫几十遍（建一次，之后秒过）
-    lines = ["DO $$ BEGIN "
-             "IF NOT EXISTS (SELECT 1 FROM pg_indexes "
-             "WHERE indexname = 'idx_sp_many_tag') THEN "
-             "CREATE INDEX idx_sp_many_tag "
-             "ON many_unit_has_many_general_tag (id_general_tag); "
-             "END IF; END $$;",
-             "BEGIN;"]
+    lines = ["BEGIN;"]
     if tag_keys:
         vals = ", ".join("({o}::int, '{n}'::text, '{nn}'::text)".format(
             o=o, n=_escape(n), nn=_escape(nn)) for o, n, nn in tag_keys)

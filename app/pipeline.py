@@ -472,6 +472,16 @@ class Pipeline:
             return
         if cfg["tagging"].get("backup_before_write", True):
             self._backup_once(job, cfg)
+        # 一次性索引维护（首个写库批次前）：大库可能耗时数分钟，显式告知
+        for db in {it["db"] for it in batch}:
+            key = f"_idx_done_{db}"
+            if not getattr(job, key, False):
+                store.log("info", f"{db}: 检查/创建标签关系索引"
+                                  f"（一次性，大库可能需要几分钟）…")
+                _t = time.time()
+                dbaccess.ensure_tag_index(db)
+                setattr(job, key, True)
+                store.log("info", f"{db}: 索引就绪，耗时 {time.time() - _t:.1f}s")
         by_db = {}
         for it in batch:
             by_db.setdefault(it["db"], []).append(it)
@@ -488,6 +498,8 @@ class Pipeline:
                 out = dbaccess.transport().exec_script(
                     db, dbaccess.build_write_script(items))
                 _t2 = time.time()
+                store.log("info", f"{db}: 写库脚本执行完成，解析到 "
+                                  f"{len(rows)} 行标签记录")
                 rows = dbaccess.parse_tag_rows(out)
                 rows_map = {(owner, name): (rid, owner, name)
                             for rid, owner, name in rows}
