@@ -17,18 +17,18 @@ COPY app/requirements.txt /tmp/requirements.txt
 RUN pip install -r /tmp/requirements.txt \
     && pip install --no-deps rapidocr-onnxruntime==1.3.24
 
-# GitHub 克隆不带二进制模型（.gitignore 排除）：构建时按 sha256 校验下载到
-# /app/app/models；国内网络可加 --build-arg HF_ENDPOINT=https://hf-mirror.com
-# 该层放在代码 COPY 之前：改代码不会触发重新下载模型
+# 保持包结构：/app/run.py + /app/app/…（run.py 以 "app.main:app" 导入）
+COPY run.py /app/run.py
+COPY app /app/app
+
+# 模型补齐：本地已带的模型（sha256 校验通过）直接跳过、不联网；
+# 只有 GitHub 克隆等缺失场景才按 sha256 从 HF 下载。
+# 国内网络可加 --build-arg HF_ENDPOINT=https://hf-mirror.com
 ARG HF_ENDPOINT=""
 ENV HF_ENDPOINT=${HF_ENDPOINT}
 COPY scripts/download_models.py /tmp/download_models.py
 RUN python /tmp/download_models.py --all --dest /app/app/models || \
     (echo "模型下载失败：检查网络，或使用 --build-arg HF_ENDPOINT=https://hf-mirror.com" && exit 1)
-
-# 保持包结构：/app/run.py + /app/app/…（run.py 以 "app.main:app" 导入）
-COPY run.py /app/run.py
-COPY app /app/app
 
 VOLUME /config
 EXPOSE 47310
