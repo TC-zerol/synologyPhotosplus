@@ -51,16 +51,13 @@
 # 1. 整个项目放到 /volume1/docker/synologyPhotosplus
 # 2. 按需修改 docker-compose.yml 的照片挂载（源路径必须存在，否则容器起不来）
 cd /volume1/docker/synologyPhotosplus
-sudo chmod +x build.sh
-sudo ./build.sh            # 干净的逐行构建输出（已禁用 buildkit 进度刷屏）
+sudo docker compose up -d --build
 ```
 
-> 国内网络构建时模型下载慢/失败，加镜像源：
-> `sudo ./build.sh --build-arg HF_ENDPOINT=https://hf-mirror.com`
->
-> 首次克隆仓库构建会自动下载约 420MB 模型（带 sha256 校验）；
-> 用整体文件夹拷贝部署的，确认 `app/models/` 里的 .onnx 已随拷贝到位——
-> 可用 `python3 scripts/download_models.py --check --all` 逐文件诊断。
+> **构建不下载任何模型**。首次启动后到 Web 控制台"模型与词表"页点击
+> **下载模型**（约 420MB，带 sha256 校验，进度见运行日志）；国内网络可在
+> `docker-compose.yml` 的 environment 中加 `HF_ENDPOINT=https://hf-mirror.com`。
+> 用整体文件夹拷贝部署的，`app/models/` 里的 .onnx 会直接生效、无需下载。
 
 打开 `http://NAS_IP:47310`：
 

@@ -88,6 +88,7 @@ async def bootstrap():
         "top_tags": store.top_tags(30),
         "vocab": clip_infer.load_vocab(),
         "models": _list_models(),
+        "missing_models": registry.missing_models(cfg),
         "mounts": _mount_info(cfg),
     }
 
@@ -541,15 +542,15 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
 def _download_models_bg():
-    """缺失模型后台下载（子进程，输出逐行进日志）。"""
+    """模型后台下载（子进程，输出逐行进日志）。可选模型一并下载。"""
     import subprocess
     import sys
     script = os.path.join(os.path.dirname(os.path.dirname(__file__)),
                           "scripts", "download_models.py")
     if not os.path.isfile(script):
         store.log("error", f"模型下载脚本不存在: {script}")
-        return
-    store.log("warn", "识别模型缺失，开始后台下载（约 420MB，期间无法扫描）…")
+        raise RuntimeError("模型下载脚本不存在")
+    store.log("warn", "开始后台下载模型（约 420MB，期间无法扫描）…")
     proc = subprocess.Popen([sys.executable, script, "--all",
                              "--dest", config.MODEL_DIR_BUILTIN],
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
@@ -559,10 +560,18 @@ def _download_models_bg():
             store.log("info", f"[模型下载] {line[:300]}")
     proc.wait()
     if proc.returncode == 0:
-        store.log("info", "模型后台下载完成，可以开始扫描")
+        store.log("info", "模型下载完成，可以开始扫描")
     else:
-        store.log("error", f"模型后台下载失败（exit={proc.returncode}），"
-                           f"可配置 HF_ENDPOINT 镜像后重启容器重试")
+        raise RuntimeError(f"模型下载失败（exit={proc.returncode}），"
+                           f"可在 compose 中设置 HF_ENDPOINT 镜像后重试")
+
+
+@app.post("/api/models/download", dependencies=[Depends(_auth)])
+async def download_models():
+    """后台下载缺失模型；用 GET /api/bg/status?kind=modeldl 轮询。"""
+    if not _bg_start("modeldl", _download_models_bg):
+        raise HTTPException(409, "下载已在进行中")
+    return {"started": True}
 
 
 @app.on_event("startup")
@@ -571,6 +580,5 @@ async def on_startup():
     store.log("info", "Synology Photos+ 已启动")
     missing = registry.missing_models(config.load())
     if missing:
-        store.log("warn", f"检测到缺失模型: {', '.join(missing)}")
-        threading.Thread(target=_download_models_bg, daemon=True,
-                         name="sp-model-dl").start()
+        store.log("warn", f"检测到缺失模型: {', '.join(missing)}。"
+                          f"请到'模型与词表'页点击下载，或自行放置到 app/models/")

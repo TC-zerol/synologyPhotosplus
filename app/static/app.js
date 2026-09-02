@@ -94,7 +94,7 @@ async function boot() {
     renderJob(data.status);
     renderTopTags(data.top_tags);
     fillModels(data.models);
-    renderModels(data.models, CFG);
+    renderModels(data.models, CFG, data.missing_models);
     fillSettings(CFG);
     fillDb(CFG);
     fillMounts(data.mounts);
@@ -115,7 +115,7 @@ function fmtSize(n) {
   return n >= (1 << 20) ? (n / (1 << 20)).toFixed(0) + " MB"
        : n >= 1024 ? (n / 1024).toFixed(0) + " KB" : n + " B";
 }
-function renderModels(models, cfg) {
+function renderModels(models, cfg, missing) {
   const el = $("#model-lists");
   if (!el) return;
   const row = (m, inUse, kind) => `
@@ -128,10 +128,19 @@ function renderModels(models, cfg) {
     `<div style="margin-bottom:10px"><b class="small">${title}</b>` +
     (items.length ? items.map((m) => row(m, m.name === current)).join("")
                   : '<div class="muted small">无</div>') + "</div>";
-  el.innerHTML =
+  const warn = (missing && missing.length)
+    ? `<div class="row bad" style="padding:8px 10px;border-radius:8px;margin-bottom:8px">
+         缺失模型：<b>${missing.join("、")}</b>
+         <button class="btn primary" id="btn-dl-models" style="margin-left:auto;padding:4px 12px">下载模型</button>
+       </div>
+       <p class="hint">也可以把模型文件（来源与 sha256 见 README）放到 app/models/ 后重启容器。</p>`
+    : "";
+  el.innerHTML = warn +
     sec("物体检测（YOLO）", models.yolo || [], cfg.detect.model) +
     sec("语义识别（CLIP）", models.clip || [], cfg.clip.model) +
     '<p class="hint">"使用中"对应识别设置里的当前选择。上传新模型到 /config/models 后也会出现在这里。</p>';
+  const btn = $("#btn-dl-models");
+  if (btn) btn.onclick = downloadModels;
 }
 
 /* ---------------- 仪表盘 ---------------- */
@@ -516,6 +525,14 @@ $("#btn-save-vocab").onclick = async () => {
 };
 const PUT = (p, body) => api(p, { method: "PUT", body: JSON.stringify(body || {}) });
 
+async function downloadModels() {
+  try {
+    await POST("/api/models/download");
+    toast("模型下载已在后台开始（约 420MB），进度见运行日志");
+    pollBg("modeldl", () => {}, () => { toast("模型下载完成 ✓"); boot(); },
+           (err) => toast("模型下载失败：" + err, true));
+  } catch (e) { toast(e.message, true); }
+}
 $("#btn-upload").onclick = async () => {
   const f = $("#model-file").files[0];
   if (!f) return toast("先选择 .onnx 文件", true);
