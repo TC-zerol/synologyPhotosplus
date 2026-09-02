@@ -366,7 +366,7 @@ class Pipeline:
                 for cls_id, s in yolo.detect(img, cfg["detect"]["model"],
                                              cfg["detect"]["confidence"]):
                     name, nn = yolo.labels(cls_id, lang)
-                    if nn not in {t[1] for t in tags}:
+                    if name not in {t[0] for t in tags}:
                         tags.append((name, nn, s))
                 tags = tags[: cfg["detect"]["max_tags"]]
                 engines["detect"] = True
@@ -385,7 +385,7 @@ class Pipeline:
                         name, nn = zh, f"{zh} {en}".lower()
                     else:
                         name, nn = zh, f"{en} {zh}".lower()
-                    if nn not in {t[1] for t in tags}:
+                    if name not in {t[0] for t in tags}:
                         tags.append((name, nn, score))
                 engines["clip"] = True
             except Exception as e:
@@ -398,8 +398,8 @@ class Pipeline:
                                          cfg["ocr"].get("max_kw", 24))
                 prefix = cfg["tagging"].get("tag_prefix", "")
                 for kw in kws:
-                    nn = kw.lower()
-                    if nn not in {t[1] for t in tags}:
+                    nn = (prefix + kw).lower()
+                    if (prefix + kw) not in {t[0] for t in tags}:
                         tags.append((prefix + kw, nn, None))
                 ocr_text = ocr_infer.full_text(lines, cfg["ocr"].get("max_text_len"))
                 engines["ocr"] = True
@@ -426,7 +426,7 @@ class Pipeline:
                     for t in json.loads((row and row["tags"]) or "[]")]
         old_ocr = (row and row["ocr_text"]) or ""
         merged = old_tags + [t for t in result["tags"]
-                             if t[1] not in {x[1] for x in old_tags}]
+                             if t[0] not in {x[0] for x in old_tags}]
         cap = (cfg or config.load()).get("tagging", {}).get(
             "max_tags_per_photo", 15)
         merged = merged[:cap]
@@ -485,6 +485,14 @@ class Pipeline:
                 rows = dbaccess.parse_tag_rows(out)
                 rows_map = {(owner, name): (rid, owner, name)
                             for rid, owner, name in rows}
+                expected = {(it["owner_id"] or 0, name)
+                            for it in items for name, _nn, _s in it["tags"]}
+                missing = expected - set(rows_map)
+                if missing:
+                    sample = ", ".join(f"{owner}:{name}"
+                                       for owner, name in sorted(missing)[:5])
+                    raise dbaccess.DBError(
+                        f"写库后未能确认 {len(missing)} 个标签行: {sample}")
                 for it in items:
                     unit_rows = []
                     for name, nn, _s in it["tags"]:

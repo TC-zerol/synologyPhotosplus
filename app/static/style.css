@@ -117,20 +117,26 @@ input:focus, select:focus, textarea:focus { border-color: rgba(108,123,255,.6); 
 .ts-wrapper .ts-control > input {
   color: var(--text); font-size: 13px;
 }
+.ts-wrapper.single .ts-control .item {
+  color: #f7f9ff;
+}
 .ts-dropdown {
-  margin-top: 4px; background: #151a24; color: var(--text);
-  border: 1px solid var(--card-border); border-radius: 10px;
+  margin-top: 4px; background: #f7f9ff; color: #111827;
+  border: 1px solid rgba(108,123,255,.35); border-radius: 10px;
   box-shadow: 0 10px 30px rgba(0,0,0,.5); z-index: 60; overflow: hidden;
 }
 .ts-dropdown .option {
-  padding: 9px 12px; font-size: 13px; color: var(--text); border-bottom: none;
+  padding: 9px 12px; font-size: 13px; color: #111827; border-bottom: none;
+}
+.ts-dropdown .option.selected {
+  background: rgba(108,123,255,.14); color: #1f2aa0; font-weight: 600;
 }
 .ts-dropdown .option:hover,
 .ts-dropdown .option.active {
-  background: rgba(108,123,255,.18); color: #fff;
+  background: #3342d6; color: #fff;
 }
 .ts-dropdown .optgroup-header {
-  background: #10141d; color: var(--muted); border-bottom: 1px solid var(--card-border);
+  background: #eef1ff; color: #4b5563; border-bottom: 1px solid rgba(17,24,39,.08);
 }
 .ts-dropdown [data-selectable].option:first-child { border-radius: 10px 10px 0 0; }
 .ts-dropdown [data-selectable].option:last-child { border-radius: 0 0 10px 10px; }

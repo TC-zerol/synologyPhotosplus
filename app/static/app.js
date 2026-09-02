@@ -225,20 +225,48 @@ $("#btn-retry-failed").onclick = async () => {
 function fillModels(models) {
   const y = $("#cfg-detect-model"), c = $("#cfg-clip-model");
   // models 现在是 [{name, size, mtime}]；兼容旧版纯文件名数组
-  const opt = (m) => `<option>${(m && m.name) ?? m}</option>`;
-  y.innerHTML = (models.yolo || []).map(opt).join("");
-  c.innerHTML = (models.clip || []).map(opt).join("");
-  refreshSelects();
+  const toOptions = (items) => (items || []).map((m) => {
+    const name = String((m && m.name) ?? m);
+    return { value: name, text: name };
+  });
+  setSelectOptions(y, toOptions(models.yolo));
+  setSelectOptions(c, toOptions(models.clip));
+}
+
+function setSelectOptions(sel, options) {
+  if (sel.tomselect) {
+    const current = sel.tomselect.getValue();
+    sel.tomselect.clear(true);
+    sel.tomselect.clearOptions();
+    sel.tomselect.addOptions(options);
+    sel.tomselect.refreshOptions(false);
+    if (current) sel.tomselect.setValue(current, true);
+    return;
+  }
+  const opt = (o) => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.text)}</option>`;
+  sel.innerHTML = options.map(opt).join("");
+}
+
+function setSelectValue(sel, value) {
+  value = value == null ? "" : String(value);
+  if (sel.tomselect) {
+    if (!sel.tomselect.options[value] && value) {
+      sel.tomselect.addOption({ value, text: value });
+    }
+    sel.tomselect.setValue(value, true);
+  } else {
+    sel.value = value;
+  }
 }
 
 function fillSettings(cfg) {
   $("#cfg-detect-enabled").checked = cfg.detect.enabled;
-  $("#cfg-detect-model").value = cfg.detect.model;
+  setSelectValue($("#cfg-detect-model"), cfg.detect.model);
   $("#cfg-detect-conf").value = cfg.detect.confidence;
   $("#v-detect-conf").textContent = Math.round(cfg.detect.confidence * 100) + "%";
   $("#cfg-detect-max").value = cfg.detect.max_tags;
   $("#cfg-clip-enabled").checked = cfg.clip.enabled;
-  $("#cfg-clip-model").value = cfg.clip.model;
+  setSelectValue($("#cfg-clip-model"), cfg.clip.model);
   $("#cfg-clip-max").value = cfg.clip.max_tags;
   $("#cfg-clip-prob").value = cfg.clip.prob_thr;
   $("#v-clip-prob").textContent = Math.round(cfg.clip.prob_thr * 100) + "%";
@@ -250,7 +278,7 @@ function fillSettings(cfg) {
   $("#cfg-video-enabled").checked = cfg.video.enabled;
   $("#cfg-video-int").value = cfg.video.sample_interval;
   $("#cfg-video-max").value = cfg.video.max_frames;
-  $("#cfg-lang").value = cfg.tagging.language;
+  setSelectValue($("#cfg-lang"), cfg.tagging.language);
   $("#cfg-prefix").value = cfg.tagging.tag_prefix;
   $("#cfg-poll").value = cfg.scan.poll_interval_min;
   $("#cfg-batch").value = cfg.scan.batch_size;

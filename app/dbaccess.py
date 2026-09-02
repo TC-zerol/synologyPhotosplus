@@ -443,13 +443,23 @@ def build_write_script(items: list) -> str:
             rel_vals.append(
                 f"({unit_id}::int, {owner}::int, '{_escape(name)}'::text)")
     if rel_vals:
+        # 同一批内按 (unit, name) 去重——不同引擎可能产出同名标签
+        uniq_rel = list(dict.fromkeys(rel_vals))
+        # canonical：同一 (id_user, name) 在库中存在多行时取 MIN(id)，
+        # 避免一行 JOIN 多行产出重复 (unit, tag) 对打爆主键
+        pair_vals = ", ".join(sorted({f"({o}::int, '{_escape(n)}'::text)"
+                                      for o, n, _ in tag_keys}))
         lines.append(
             "INSERT INTO many_unit_has_many_general_tag (id_unit, id_general_tag) "
-            f"SELECT v.u, g.id FROM (VALUES {', '.join(rel_vals)}) "
-            "AS v(u, uid, nm) JOIN general_tag g "
-            "ON g.id_user = v.uid AND g.name = v.nm "
+            f"SELECT DISTINCT v.u, gg.gid FROM (VALUES {', '.join(uniq_rel)}) "
+            "AS v(u, uid, nm) "
+            "JOIN (SELECT MIN(g.id) AS gid, g.id_user, g.name FROM general_tag g "
+            f"JOIN (VALUES {pair_vals}) AS k(uid, nm) "
+            "ON g.id_user = k.uid AND g.name = k.nm "
+            "GROUP BY g.id_user, g.name) AS gg "
+            "ON gg.id_user = v.uid AND gg.name = v.nm "
             "WHERE NOT EXISTS (SELECT 1 FROM many_unit_has_many_general_tag m "
-            "WHERE m.id_unit = v.u AND m.id_general_tag = g.id);")
+            "WHERE m.id_unit = v.u AND m.id_general_tag = gg.gid);")
         count_vals = ", ".join(
             sorted({"({}::int, '{}'::text)".format(o, _escape(n))
                     for _, o, names in per_item for n in names}))
@@ -458,16 +468,22 @@ def build_write_script(items: list) -> str:
             "(SELECT COUNT(*) FROM many_unit_has_many_general_tag m "
             "WHERE m.id_general_tag = g.id) "
             "WHERE (g.id_user, g.name) IN (VALUES " + count_vals + ");")
-    # SELECT 必须是最后一个语句：psycopg2(TCP 模式)只返回最后一个结果集
+    lines.append("COMMIT;")
+    # SELECT 必须是最后一个语句：psycopg2(TCP 模式)只返回最后一个结果集。
+    # 注意不要把 COMMIT 放在它后面，否则 TCP 模式会拿不到标签行结果。
     if tag_keys:
-        vals = ", ".join("({o}::int, '{n}'::text, '{nn}'::text)".format(
-            o=o, n=_escape(n), nn=_escape(nn)) for o, n, nn in tag_keys)
+        # 取 canonical(MIN id) 行，保证记账与实际写入的关联行一致
+        pair_vals = ", ".join(sorted({f"({o}::int, '{_escape(n)}'::text)"
+                                      for o, n, _ in tag_keys}))
         lines.append(
             "SELECT COALESCE(json_agg(row_to_json(t))::text, '[]') FROM "
-            "(SELECT g.id, g.id_user, g.name FROM general_tag g "
-            f"JOIN (VALUES {vals}) AS v(uid, nm, nn) "
-            f"ON g.id_user = v.uid AND g.name = v.nm) t;")
-    lines.append("COMMIT;")
+            "(SELECT gg.gid AS id, gg.id_user AS id_user, gg.name AS name "
+            "FROM (VALUES " + pair_vals + ") AS v(uid, nm) "
+            "JOIN (SELECT MIN(g.id) AS gid, g.id_user, g.name FROM general_tag g "
+            f"JOIN (VALUES {pair_vals}) AS k(uid, nm) "
+            "ON g.id_user = k.uid AND g.name = k.nm "
+            "GROUP BY g.id_user, g.name) AS gg "
+            "ON gg.id_user = v.uid AND gg.name = v.nm) t;")
     return "\n".join(lines)
 
 

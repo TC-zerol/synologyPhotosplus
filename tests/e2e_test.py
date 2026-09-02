@@ -5,6 +5,7 @@
 """
 import json
 import os
+import re
 import sys
 import tempfile
 import time
@@ -56,7 +57,19 @@ class FakeTransport:
     def exec_script(self, db, script):
         if self.fail_write and "INSERT INTO many" in script:
             raise Exception("simulated db down")
-        return '[{"id": 7, "id_user": 1, "name": "P"}]'
+        if "INSERT INTO general_tag" not in script:
+            return "[]"
+        names = []
+        for owner, name in re.findall(r"\((\d+)::int, '((?:''|[^'])*)'::text", script):
+            names.append((int(owner), name.replace("''", "'")))
+        seen = {}
+        for owner, name in names:
+            seen[(owner, name)] = {
+                "id": len(seen) + 7,
+                "id_user": owner,
+                "name": name,
+            }
+        return json.dumps(list(seen.values()), ensure_ascii=False)
 
     def list_databases(self):
         return ["synofoto"]
@@ -75,6 +88,10 @@ dbaccess._transport = fake
 dbaccess._transport_cfg_key = ("ssh", repr(sorted(config.load()["db"]["ssh"].items())),
                                repr(sorted(config.load()["db"]["tcp"].items())))
 dbaccess.list_databases = lambda: ["synofoto"]
+_script = dbaccess.build_write_script([
+    {"unit_id": 1, "owner_id": 1, "tags": [("测试", "测试 test", 1.0)]}
+])
+assert _script.strip().splitlines()[-1].startswith("SELECT COALESCE"), _script
 config.save({"mounts": [{"name": "test", "path": root}],
              "scan": {"batch_size": 1, "poll_interval_min": 0},
              "tagging": {"backup_before_write": False},

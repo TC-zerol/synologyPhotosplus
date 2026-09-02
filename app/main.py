@@ -172,6 +172,8 @@ async def start_job(request: Request):
         pw = str(body.get("confirm", ""))
         if pw != "REPLACE":
             raise HTTPException(400, "重新分析会先移除本工具已写标签，需要 confirm=REPLACE")
+    if jtype == "write_pending" and config.load()["tagging"].get("dry_run"):
+        raise HTTPException(400, "当前启用了试运行(dry-run)，补写不会写入群晖；请先在识别设置里关闭试运行并保存")
     try:
         return PIPELINE.enqueue(jtype, body.get("opts") or {})
     except RuntimeError as e:
