@@ -23,12 +23,13 @@ COPY app /app/app
 
 # 模型补齐：本地已带的模型（sha256 校验通过）直接跳过、不联网；
 # 只有 GitHub 克隆等缺失场景才按 sha256 从 HF 下载。
+# 构建时网络不通也没关系：不阻塞构建，容器首次启动会自动后台下载。
 # 国内网络可加 --build-arg HF_ENDPOINT=https://hf-mirror.com
 ARG HF_ENDPOINT=""
 ENV HF_ENDPOINT=${HF_ENDPOINT}
-COPY scripts/download_models.py /tmp/download_models.py
-RUN python /tmp/download_models.py --all --dest /app/app/models || \
-    (echo "模型下载失败：检查网络，或使用 --build-arg HF_ENDPOINT=https://hf-mirror.com" && exit 1)
+COPY scripts/download_models.py /app/scripts/download_models.py
+RUN python /app/scripts/download_models.py --all --dest /app/app/models || \
+    echo "WARN: 构建时未能下载模型（网络原因），容器首次启动将自动后台下载"
 
 VOLUME /config
 EXPOSE 47310

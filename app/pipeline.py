@@ -203,6 +203,11 @@ class Pipeline:
         if not mounts:
             mounts = ["/photos"]   # 未配置时自动索引 /photos 全树
             store.log("info", "未配置挂载，自动索引 /photos")
+        missing = registry.missing_models(cfg)
+        if missing:
+            raise RuntimeError(
+                f"识别模型尚未就绪（缺 {', '.join(missing)}）。"
+                f"若刚部署，容器启动时会自动后台下载（见日志），完成后重新点击扫描")
         if cfg["clip"]["enabled"]:
             resolved = registry.resolve_clip_model(cfg["clip"]["model"])
             if resolved != cfg["clip"]["model"]:

@@ -540,7 +540,37 @@ async def index():
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
+def _download_models_bg():
+    """缺失模型后台下载（子进程，输出逐行进日志）。"""
+    import subprocess
+    import sys
+    script = os.path.join(os.path.dirname(os.path.dirname(__file__)),
+                          "scripts", "download_models.py")
+    if not os.path.isfile(script):
+        store.log("error", f"模型下载脚本不存在: {script}")
+        return
+    store.log("warn", "识别模型缺失，开始后台下载（约 420MB，期间无法扫描）…")
+    proc = subprocess.Popen([sys.executable, script, "--all",
+                             "--dest", config.MODEL_DIR_BUILTIN],
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    for raw in proc.stdout:
+        line = raw.decode("utf-8", "replace").strip()
+        if line:
+            store.log("info", f"[模型下载] {line[:300]}")
+    proc.wait()
+    if proc.returncode == 0:
+        store.log("info", "模型后台下载完成，可以开始扫描")
+    else:
+        store.log("error", f"模型后台下载失败（exit={proc.returncode}），"
+                           f"可配置 HF_ENDPOINT 镜像后重启容器重试")
+
+
 @app.on_event("startup")
 async def on_startup():
     PIPELINE.start()
     store.log("info", "Synology Photos+ 已启动")
+    missing = registry.missing_models(config.load())
+    if missing:
+        store.log("warn", f"检测到缺失模型: {', '.join(missing)}")
+        threading.Thread(target=_download_models_bg, daemon=True,
+                         name="sp-model-dl").start()

@@ -82,6 +82,22 @@ def _resolve_model_path(name: str) -> str:
                             f"(查找于 {config.MODEL_DIR_USER} / {config.MODEL_DIR_BUILTIN})")
 
 
+def missing_models(cfg: dict) -> list:
+    """返回缺失的模型文件清单（供启动补下载与扫描前置检查）。"""
+    missing = []
+    if cfg["detect"]["enabled"]:
+        try:
+            _resolve_model_path(cfg["detect"]["model"])
+        except FileNotFoundError:
+            missing.append(cfg["detect"]["model"])
+    if cfg["clip"]["enabled"]:
+        try:
+            _resolve_model_path(cfg["clip"]["model"])
+        except FileNotFoundError:
+            missing.append(cfg["clip"]["model"])
+    return missing
+
+
 def resolve_clip_model(name: str) -> str:
     """配置的 CLIP 模型不存在时，回退到可用的模型（优先 cnclip.onnx）。
 
