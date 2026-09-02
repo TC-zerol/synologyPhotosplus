@@ -477,14 +477,17 @@ class Pipeline:
             by_db.setdefault(it["db"], []).append(it)
         for db, items in by_db.items():
             try:
+                _t0 = time.time()
                 # 1) 先查哪些标签行已存在（用户手工建过的 → 复用，不新建）
                 out = dbaccess.transport().exec_script(
                     db, dbaccess.build_existing_tags_script(items))
+                _t1 = time.time()
                 existing = {(owner, name): rid
                             for rid, owner, name in dbaccess.parse_tag_rows(out)}
                 # 2) 补建缺失标签 + 建立关联 + 修正 count
                 out = dbaccess.transport().exec_script(
                     db, dbaccess.build_write_script(items))
+                _t2 = time.time()
                 rows = dbaccess.parse_tag_rows(out)
                 rows_map = {(owner, name): (rid, owner, name)
                             for rid, owner, name in rows}
@@ -516,10 +519,15 @@ class Pipeline:
                 reused = sum(1 for k in rows_map if k in existing)
                 store.log("info", f"{db}: 写入 {len(items)} 项标签成功"
                                   f"（新建标签行 {len(rows) - reused}，"
-                                  f"复用已有 {reused}）")
+                                  f"复用已有 {reused}，"
+                                  f"查重 {_t1 - _t0:.2f}s，"
+                                  f"写库+计数 {_t2 - _t1:.2f}s）")
             except Exception as e:
                 # 任何写库异常都不击穿任务：结果保留为 write_error，稍后自动补写
-                store.log("error", f"{db}: 写库失败（保留分析结果，稍后可重试写库）: {e}")
+                _t1 = locals().get("_t1", _t0)
+                store.log("error", f"{db}: 写库失败（保留分析结果，稍后可重试写库）: {e}"
+                                  f" [查重 {_t1 - _t0:.2f}s，"
+                                  f"写库已进行 {time.time() - _t1:.2f}s]")
                 for it in items:
                     store.mark_processed(
                         it["db"], it["unit_id"], "write_error",

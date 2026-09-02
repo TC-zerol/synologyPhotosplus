@@ -430,8 +430,12 @@ def build_write_script(items: list) -> str:
         per_item.append((it["unit_id"], owner, [t[0] for t in it["tags"]]))
     # 一次性给关系表的 id_general_tag 建索引：count 修正/关联去重都靠它，
     # 大库（百万级关系行）没有它每次写批要全表扫几十遍（建一次，之后秒过）
-    lines = ["CREATE INDEX IF NOT EXISTS idx_sp_many_tag "
-             "ON many_unit_has_many_general_tag (id_general_tag);",
+    lines = ["DO $$ BEGIN "
+             "IF NOT EXISTS (SELECT 1 FROM pg_indexes "
+             "WHERE indexname = 'idx_sp_many_tag') THEN "
+             "CREATE INDEX idx_sp_many_tag "
+             "ON many_unit_has_many_general_tag (id_general_tag); "
+             "END IF; END $$;",
              "BEGIN;"]
     if tag_keys:
         vals = ", ".join("({o}::int, '{n}'::text, '{nn}'::text)".format(
@@ -469,16 +473,18 @@ def build_write_script(items: list) -> str:
         count_vals = ", ".join(
             sorted({"({}::int, '{}'::text)".format(o, _escape(n))
                     for _, o, names in per_item for n in names}))
+        # 注意：UPDATE 目标表 g 不能出现在显式 JOIN 的 ON 子句里（PG 限制），
+        # 因此聚合放在子查询内按 (id_user,name) 分组，外层只关联 v/c 两个 FROM 项
         lines.append(
             "UPDATE general_tag g SET count = COALESCE(c.cnt, 0) "
             "FROM (VALUES " + count_vals + ") AS v(uid, nm) "
-            "LEFT JOIN (SELECT m.id_general_tag, COUNT(*) AS cnt "
-            "FROM many_unit_has_many_general_tag m "
-            "JOIN general_tag g2 ON g2.id = m.id_general_tag "
-            "JOIN (VALUES " + count_vals + ") AS k(uid, nm) "
-            "ON g2.id_user = k.uid AND g2.name = k.nm "
-            "GROUP BY m.id_general_tag) AS c ON c.id_general_tag = g.id "
-            "WHERE (g.id_user, g.name) IN (VALUES " + count_vals + ");")
+            "LEFT JOIN (SELECT k.uid, k.nm, COUNT(m.id_unit) AS cnt "
+            "FROM (VALUES " + count_vals + ") AS k(uid, nm) "
+            "JOIN general_tag g2 ON g2.id_user = k.uid AND g2.name = k.nm "
+            "LEFT JOIN many_unit_has_many_general_tag m "
+            "ON m.id_general_tag = g2.id "
+            "GROUP BY k.uid, k.nm) AS c ON c.uid = v.uid AND c.nm = v.nm "
+            "WHERE g.id_user = v.uid AND g.name = v.nm;")
     lines.append("COMMIT;")
     # SELECT 必须是最后一个语句：psycopg2(TCP 模式)只返回最后一个结果集。
     # 注意不要把 COMMIT 放在它后面，否则 TCP 模式会拿不到标签行结果。
