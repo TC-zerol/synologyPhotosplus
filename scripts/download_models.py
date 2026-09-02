@@ -68,9 +68,23 @@ def main() -> int:
     ap.add_argument("--all", action="store_true", help="包含可选模型")
     ap.add_argument("--dest", default=DEFAULT_MODEL_DIR,
                     help="模型保存目录（默认仓库内 app/models）")
+    ap.add_argument("--check", action="store_true",
+                    help="只诊断不下载：逐文件报告存在/缺失/哈希是否匹配")
     args = ap.parse_args()
     want_all = args.all
     model_dir = args.dest
+    if args.check:
+        for rel, _urls, sha, optional in FILES:
+            if optional and not want_all:
+                continue
+            dest = os.path.join(model_dir, rel)
+            if not os.path.isfile(dest):
+                print(f"[缺失] {dest}")
+            else:
+                actual = sha256_of(dest)
+                mark = "校验通过" if actual == sha else                     f"哈希不匹配! 实际 {actual[:16]}… 大小 {os.path.getsize(dest)}"
+                print(f"[存在·{mark}] {dest}")
+        return 0
     failed = []
     for rel, urls, sha, optional in FILES:
         if optional and not want_all:

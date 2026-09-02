@@ -51,11 +51,17 @@ Same "Route A" as [eleonne/synology-tagger](https://github.com/eleonne/synology-
 # 1. Put the project at /volume1/docker/synologyPhotosplus
 # 2. Adjust the photo bind mounts in docker-compose.yml (source must exist)
 cd /volume1/docker/synologyPhotosplus
-sudo docker compose up -d --build
+sudo chmod +x build.sh
+sudo ./build.sh            # clean line-by-line build output (no progress spam)
 ```
 
 > Slow/broken Hugging Face access during build? Use a mirror:
-> `sudo docker compose build --build-arg HF_ENDPOINT=https://hf-mirror.com`
+> `sudo ./build.sh --build-arg HF_ENDPOINT=https://hf-mirror.com`
+>
+> A fresh clone downloads ~420 MB of models (sha256-verified) on first build.
+> If you deployed by copying the folder, make sure the `.onnx` files under
+> `app/models/` came along — diagnose with
+> `python3 scripts/download_models.py --check --all`.
 
 Open `http://NAS_IP:47310`:
 
