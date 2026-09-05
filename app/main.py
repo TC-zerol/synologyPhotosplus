@@ -500,6 +500,11 @@ async def serve_file(path: str):
         resp = _try(cand)
         if resp:
             return resp
+        if resp is None and \
+                os.path.splitext(cand)[1].lower() in util.RAW_EXTS:
+            ea_thumb = util.find_ea_thumb(cand)
+            if ea_thumb:
+                resp = _try(ea_thumb)
 
     # 2) 相对路径直拼
     rel = os.path.normpath(path.lstrip("/").replace("\\", "/"))

@@ -27,6 +27,32 @@ RAW_EXTS = {".arw", ".cr2", ".cr3", ".nef", ".nrw", ".raf", ".orf",
             ".rw2", ".dng", ".pef", ".srw"}
 
 
+def find_ea_thumb(photo_path: str) -> str:
+    """查找群晖 Photos 为该照片生成的缩略图（@eaDir/<名>/SYOPHOTO_THM*）。
+
+    这是 Synology Photos 自己的缓存，不新建任何文件。命名有历史变体
+    （SYOPHOTO_THM_M/L/S、含 bate 后缀等），取其中最大的那张。
+    """
+    d = os.path.dirname(photo_path)
+    ea = os.path.join(d, "@eaDir", os.path.basename(photo_path))
+    if not os.path.isdir(ea):
+        return ""
+    best, best_size = "", -1
+    for fn in os.listdir(ea):
+        if not fn.upper().startswith("SYOPHOTO_THM"):
+            continue
+        if not fn.lower().endswith((".jpg", ".jpeg", ".png")):
+            continue
+        p = os.path.join(ea, fn)
+        try:
+            sz = os.path.getsize(p)
+        except OSError:
+            continue
+        if sz > best_size:
+            best, best_size = p, sz
+    return best
+
+
 def downscale(img, max_side: int = 2000):
     """长边超过 max_side 时等比缩小（打标场景无需全分辨率，OCR/CLIP 大幅提速）。"""
     h, w = img.shape[:2]
@@ -51,6 +77,8 @@ def imread_any(path: str, reduce_scale: int = None):
     img = cv2.imread(path, flags)
     if img is not None:
         return img
+    if os.path.splitext(path)[1].lower() in RAW_EXTS:
+        return _imread_raw(path)
     _ensure_heif()
     try:
         from PIL import Image, ImageOps
