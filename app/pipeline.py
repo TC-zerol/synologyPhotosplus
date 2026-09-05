@@ -269,6 +269,8 @@ class Pipeline:
                     and st["retries"] >= ERROR_RETRY_LIMIT:
                 continue
             ext = os.path.splitext(u["filename"])[1].lower()
+            if ext in util.RAW_EXTS:
+                continue        # 相机 RAW 无法解码预览/分析，由同目录 JPG 承担
             if ext in util.VIDEO_EXTS and not cfg["video"].get("enabled"):
                 continue
             work.append((db, u, None))
@@ -373,9 +375,12 @@ class Pipeline:
             return {"status": "analyzed" if tags else "empty", "tags": tags,
                     "ocr_text": "", "embed": None, "engines": engines}
 
-        img = util.imread_any(path)
+        # 打标不需要全分辨率：JPEG 半分辨率解码 + 长边压到 2000，
+        # OCR/CLIP 计算量与像素数正相关，大图提速数倍
+        img = util.imread_any(path, reduce_scale=2)
         if img is None:
             raise ValueError("图片读取失败")
+        img = util.downscale(img, 2000)
         # 各引擎独立容错：单个引擎失败只少一类标签，不连累整张图
         if want("detect"):
             engines["detect"] = False

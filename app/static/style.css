@@ -187,7 +187,7 @@ input[type=range] { margin-top: 8px; accent-color: var(--accent); }
 .logview { height: 62vh; overflow-y: auto; padding: 12px; background: rgba(0,0,0,.25); border-radius: 10px; font-size: 12px; line-height: 1.7; }
 .logview .warn { color: var(--warn); }
 .logview .error { color: var(--err); }
-.logview .info { color: #9fb4d0; }
+.logview .info { color: #c3d2e8; }
 .logview .ts { color: #56607a; margin-right: 8px; }
 
 /* ---------- 搜索 ---------- */
@@ -202,6 +202,11 @@ input[type=range] { margin-top: 8px; accent-color: var(--accent); }
 .result:hover { transform: translateY(-2px); }
 .result .thumb { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; background: #151923; }
 .result .meta { padding: 8px 10px; }
+.raw-ph {
+  width: 100%; aspect-ratio: 1; display: flex; align-items: center;
+  justify-content: center; background: #151a23; color: var(--muted);
+  font-size: 18px; letter-spacing: 2px;
+}
 .result .meta .tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
 .result .meta .tags span { font-size: 10.5px; padding: 1px 7px; border-radius: 10px; background: rgba(108,123,255,.15); color: #aab4ff; }
 .result .score { font-size: 10.5px; color: var(--accent2); }

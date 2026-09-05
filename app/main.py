@@ -524,10 +524,12 @@ async def serve_file(path: str):
 # ---------------------------------------------------------------- 日志
 
 @app.get("/api/logs", dependencies=[Depends(_auth)])
-async def logs(after_id: int = 0, limit: int = 200):
+async def logs(after_id: int = 0, limit: int = 200, order: str = "desc"):
+    """order=asc 供日志页增量追赶（刷屏期间不会漏中间行）。"""
+    direction = "ASC" if order == "asc" else "DESC"
     return {"rows": store.query(
-        "SELECT id, ts, level, msg FROM events WHERE id > ? "
-        "ORDER BY id DESC LIMIT ?", (after_id, limit))}
+        f"SELECT id, ts, level, msg FROM events WHERE id > ? "
+        f"ORDER BY id {direction} LIMIT ?", (after_id, limit))}
 
 
 # ---------------------------------------------------------------- 静态页

@@ -23,11 +23,32 @@ def _ensure_heif():
         _heif_ready = True
 
 
-def imread_any(path: str):
-    """cv2 直读，失败则走 PIL（含 HEIC/GIF）。返回 BGR ndarray 或 None。"""
+RAW_EXTS = {".arw", ".cr2", ".cr3", ".nef", ".nrw", ".raf", ".orf",
+            ".rw2", ".dng", ".pef", ".srw"}
+
+
+def downscale(img, max_side: int = 2000):
+    """长边超过 max_side 时等比缩小（打标场景无需全分辨率，OCR/CLIP 大幅提速）。"""
+    h, w = img.shape[:2]
+    m = max(h, w)
+    if m <= max_side:
+        return img
+    s = max_side / m
+    return cv2.resize(img, (int(w * s), int(h * s)), interpolation=cv2.INTER_AREA)
+
+
+def imread_any(path: str, reduce_scale: int = None):
+    """cv2 直读，失败则走 PIL（含 HEIC/GIF）。返回 BGR ndarray 或 None。
+
+    reduce_scale: JPEG 专用硬件级降采样倍数（IMREAD_REDUCED_COLOR_*），
+    解码阶段即省去高分辨率的计算，用于打标这类不需要全分辨率的场景。
+    """
     if not os.path.isfile(path) or os.path.getsize(path) == 0:
         return None
-    img = cv2.imread(path, cv2.IMREAD_COLOR)
+    flags = cv2.IMREAD_COLOR
+    if reduce_scale in (2, 4, 8):
+        flags = cv2.IMREAD_COLOR | cv2.IMREAD_REDUCED_COLOR_2 if reduce_scale == 2             else cv2.IMREAD_COLOR | cv2.IMREAD_REDUCED_COLOR_4 if reduce_scale == 4             else cv2.IMREAD_COLOR | cv2.IMREAD_REDUCED_COLOR_8
+    img = cv2.imread(path, flags)
     if img is not None:
         return img
     _ensure_heif()

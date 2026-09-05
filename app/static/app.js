@@ -550,6 +550,14 @@ function tagChip(t) {
   const pct = (t.s != null && !isNaN(t.s)) ? ` ${Math.round(t.s * 100)}%` : "";
   return `<span>${t.n}${pct}</span>`;
 }
+const RAW_EXTS = ["arw", "cr2", "cr3", "nef", "nrw", "raf", "orf", "rw2", "dng", "pef", "srw"];
+function thumbHtml(it) {
+  const ext = (it.rel_path || "").split(".").pop().toLowerCase();
+  if (RAW_EXTS.includes(ext))
+    return `<div class="thumb raw-ph" title="相机 RAW 无法预览（识别已跳过）">RAW</div>`;
+  return `<img class="thumb" loading="lazy" src="${it.thumb}"
+          onerror="this.outerHTML='<div class='thumb raw-ph'>预览不可用</div>'">`;
+}
 const STATUS_CN = {written: "已写库", analyzed: "待写库", empty: "无标签",
                    write_error: "写库失败", error: "分析失败", dryrun: "Dry-run"};
 function statusChip(s) {
@@ -574,7 +582,7 @@ async function loadRecent() {
       const tags = (it.tags || []).map((t) => tagChip(t)).join("");
       return `<div class="result">
         <a href="${it.thumb}" target="_blank" rel="noopener">
-          <img class="thumb" loading="lazy" src="${it.thumb}" onerror="this.style.opacity=.15">
+          ${thumbHtml(it)}
         </a>
         <div class="meta">
           ${statusChip(it.status)}
@@ -607,7 +615,7 @@ async function doSearch() {
     el.innerHTML = r.items.map((it) => {
       const tags = (it.tags || []).map((t) => tagChip(t)).join("");
       return `<div class="result">
-        <img class="thumb" loading="lazy" src="${it.thumb}" onerror="this.style.opacity=.15">
+        ${thumbHtml(it)}
         <div class="meta">
           <div class="score">${it.score != null ? "相关度 " + it.score : ""}</div>
           <div class="tags">${tags}</div>
@@ -624,21 +632,24 @@ async function refreshLogs(reset) {
   const stick = reset ||
     (el.scrollHeight - el.scrollTop - el.clientHeight < 80);
   try {
-    const r = await GET(`/api/logs?after_id=${LOG_LAST_ID}&limit=300`);
-    if (!r.rows.length) {
-      if (reset && !el.childElementCount)
-        el.innerHTML = '<div class="info">暂无日志</div>';
-      return;
+    // 正序追赶：按 after_id 从旧到新拉取，循环直到追平（刷屏期间不漏中间行）
+    let after = LOG_LAST_ID, guard = 0, appended = 0;
+    while (guard++ < 10) {
+      const r = await GET(`/api/logs?after_id=${after}&limit=400&order=asc`);
+      if (!r.rows.length) break;
+      LOG_LAST_ID = Math.max(LOG_LAST_ID, ...r.rows.map((x) => x.id));
+      after = LOG_LAST_ID;
+      const block = r.rows.map((x) =>
+        `<div class="${x.level}"><span class="ts">${ts(x.ts)}</span>${escapeHtml(x.msg)}</div>`
+      ).join("");
+      const wasEmpty = !el.childElementCount;
+      el.insertAdjacentHTML("beforeend", block);
+      appended += r.rows.length;
+      if (wasEmpty) el.querySelectorAll(".info").forEach((n) => n.remove());
+      if (r.rows.length < 400) break;
     }
-    LOG_LAST_ID = Math.max(LOG_LAST_ID, ...r.rows.map((x) => x.id));
-    const block = r.rows.slice().reverse()   // 接口返回倒序 → 转为时间正序
-      .map((x) => `<div class="${x.level}"><span class="ts">${ts(x.ts)}</span>${escapeHtml(x.msg)}</div>`)
-      .join("");
-    const wasEmpty = !el.childElementCount;
-    el.insertAdjacentHTML("beforeend", block);   // 追加到末尾（正序）
-    if (wasEmpty) el.querySelectorAll(".info").forEach((n) => n.remove());
     while (el.childElementCount > 800) el.removeChild(el.firstChild);
-    if (stick) el.scrollTop = el.scrollHeight;
+    if (appended && stick) el.scrollTop = el.scrollHeight;
   } catch (e) {}
 }
 function escapeHtml(s) {
