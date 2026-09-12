@@ -97,10 +97,22 @@ def imread_any(path: str, reduce_scale: int = None):
             return cv2.cvtColor(np.asarray(im), cv2.COLOR_RGB2BGR)
         except Exception as e:
             last_err = e
-    global last_read_error
+    # 编码器不被支持（典型：iOS 17 的 AV1-HEIF，报 No 'hvcC' box）时，
+    # 退回群晖已生成的 @eaDir 缩略图参与分析——分辨率对打标足够
+    global last_read_note, last_read_error
+    last_read_note = ""
+    if os.path.splitext(path)[1].lower() in (".heic", ".heif", ".avif"):
+        ea = find_ea_thumb(path)
+        if ea:
+            img2 = cv2.imread(ea, cv2.IMREAD_COLOR)
+            if img2 is not None:
+                last_read_note = (f"{path}: 编码不受支持（{last_err}），"
+                                  f"已用群晖缩略图替代原图分析")
+                return img2
     last_read_error = f"{path}: {last_err}" if last_err else f"{path}: 未知原因"
     return None
 
 
-# 最近一次图片读取失败的底层原因（pipeline 记日志用）
+# 读取状态备忘（pipeline 记日志用）
 last_read_error = ""
+last_read_note = ""

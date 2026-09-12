@@ -382,6 +382,9 @@ class Pipeline:
             raise ValueError(f"图片读取失败: "
                              f"{util.last_read_error or '未知原因'}")
         img = util.downscale(img, 2000)
+        if util.last_read_note:
+            store.log("info", "分析回退 " + util.last_read_note)
+            util.last_read_note = ""
         # 各引擎独立容错：单个引擎失败只少一类标签，不连累整张图
         if want("detect"):
             engines["detect"] = False
