@@ -52,7 +52,19 @@ photo dirs (read-only mount) ──→ enumerate synofoto `unit` table + filesys
       ──→ searchable in the official app (bilingual normalized_name)
 ```
 
-Same "Route A" as [eleonne/synology-tagger](https://github.com/eleonne/synology-tagger), fully rebuilt: ~1.5 GB of models instead of ~20 GB, non-invasive DB channel, resumable scans, per-engine fault tolerance and a web console.
+The three engines have clear roles: **YOLOv8** answers "what objects are in the
+frame", **Chinese-CLIP** answers "what scene / what's happening" (the vocabulary
+IS the recognition scope, freely editable), and **RapidOCR** extracts "what text
+is written" — all merged, deduplicated and written as tags, with CLIP image
+embeddings kept for semantic search.
+
+## Proven at scale
+
+Real numbers from the author's long-running DS220+ (dual-core J4025, no GPU):
+
+- **11,000+ photos/videos** tagged with **120,000+ tags** in total
+- 10.7 tags per photo on average; 11,000+ semantic vectors powering natural-language search
+- Fully offline — photos never leave the NAS
 
 ## Deployment (tested target: DS220+, x86_64 without AVX)
 
@@ -88,7 +100,8 @@ Open `http://NAS_IP:47310`:
 - **"psql not found"** — the SSH account must be in the administrators group; several psql paths are probed automatically
 - **Too many weak tags** — raise the probability threshold (0.05–0.10) and similarity floor (0.22–0.28); use the confidence percentages in Result preview to tune
 - **Different categories** — edit the vocabulary page (`中文,英文`, one per line); new scans pick it up immediately, old photos need "Re-analyze (replace)"
-- **Performance** — ~2–5 s per photo (3 engines) on the dual-core J4025; `SP_ORT_THREADS=2`; let it run overnight; works without AVX (pure onnxruntime path)
+- **Speed expectations** — 5–15 s per photo (3 engines) on the dual-core J4025, so ~1–2 days for 10k photos (unattended; incremental scans afterwards are minute-level); `SP_ORT_THREADS=2`; works without AVX
+- **iPhone High-Efficiency format (AV1-HEIF)** — falls back to the Synology-generated thumbnail for analysis; camera RAWs are covered by their JPG pairs, previews use Synology thumbnails
 
 ## Credits
 
@@ -96,7 +109,7 @@ Standing on the shoulders of:
 
 | Project | Usage / License |
 |---|---|
-| [eleonne/synology-tagger](https://github.com/eleonne/synology-tagger) | originated & validated "Route A" (direct DB writes) |
+| [eleonne/synology-tagger](https://github.com/eleonne/synology-tagger) | first proved that writing tag data straight into the Synology Photos database is feasible — the origin of this project's approach |
 | [Ultralytics YOLOv8](https://github.com/ultralytics/ultralytics) | object detection model (**AGPL-3.0** — model weights; commercial use requires an Ultralytics license) |
 | [RapidOCR](https://github.com/RapidAI/RapidOCR) | Chinese OCR engine & models (Apache-2.0) |
 | [Chinese-CLIP](https://github.com/OFA-Sys/Chinese-CLIP) (Alibaba DAMO) | the primary recognition engine (Apache-2.0) |

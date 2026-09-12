@@ -38,17 +38,25 @@
 | 🖥 **Web 控制台** | 仪表盘 / 识别设置 / 数据库诊断 / 模型与词表管理 / 备份还原 / 日志，原生 JS 无外部依赖 |
 | 💤 **内存友好** | 任务结束与空闲 10 分钟自动卸载模型，10GB 内存 NAS 轻松运行 |
 
+## 实际运行规模
+
+以下为作者在 DS220+（J4025 双核、无独显）上长期运行的真实数据：
+
+- **11,000+ 张照片 / 视频**完成打标，累计写入 **120,000+ 个标签**
+- 平均每张照片 10.7 个标签，语义向量 11,000+ 条支持自然语言搜图
+- 全程离线运行，照片不出 NAS
+
 ## 工作原理
 
 ```
-照片目录(只读挂载) ──→ 枚举 synofoto 数据库 unit 表 + 文件索引路径匹配
+照片目录(只读挂载) ──→ 枚举 Synology Photos 数据库 unit 表 + 文件索引路径匹配
         ──→ 推理：YOLOv8 物体 + 中文CLIP 语义标签 + RapidOCR 文字
         ──→ 结果先落本地 SQLite（断点）
         ──→ 批量写入 general_tag / many_unit_has_many_general_tag
         ──→ 官方 App 搜索框直接可搜（normalized_name 中英双语）
 ```
 
-与 [eleonne/synology-tagger](https://github.com/eleonne/synology-tagger)（路线 A 验证者）原理相同，但完全重构：模型体积从 ~20GB 降到 ~1.5GB、写库通道零侵入、断点续扫、单引擎容错补全、Web 控制台。
+三个识别引擎各司其职：**YOLOv8** 回答"图里有什么物体"，**中文 CLIP** 回答"什么场景、在做什么"（词表即识别范围，可自由编辑），**RapidOCR** 提取"图里写了什么字"——三者合并去重后写入标签，并保留 CLIP 图文向量用于语义搜图。
 
 ## 部署（DS220+ 实测目标平台，x86_64 无 AVX 亦可运行）
 
@@ -82,7 +90,8 @@ sudo docker compose up -d --build
 - **测试连接报"未找到 psql"**：SSH 账号须在 administrators 组；脚本会自动探测多个 psql 路径
 - **弱标签太多（误报）**：调高"概率阈值"（建议 0.05~0.10）与"相似度下限"（0.22~0.28），配合"结果预览"的置信度百分比微调
 - **想换识别类别**：直接在"模型与词表"页编辑（`中文,英文` 每行一类），新扫描立即生效，历史照片"重新分析"重刷
-- **性能**：J4025 双核单张（三引擎）约 2~5 秒；`SP_ORT_THREADS=2`；夜间自动跑最舒适；无 AVX 也能跑（纯 onnxruntime 路线）
+- **速度预期**：J4025 双核三引擎约 5~15 秒/张，1 万张照片约 1~2 天跑完（挂机执行，之后增量扫描是分钟级）；`SP_ORT_THREADS=2`；无 AVX 也能跑
+- **iPhone 高效格式（AV1-HEIF）**：原图无法解码时自动回退群晖缩略图参与分析；相机 RAW 由同目录 JPG 承担识别，预览使用群晖生成的缩略图
 
 ## 致谢与引用
 
@@ -90,7 +99,7 @@ sudo docker compose up -d --build
 
 | 项目 | 用途 / 许可 |
 |---|---|
-| [eleonne/synology-tagger](https://github.com/eleonne/synology-tagger) | 路线 A（直写数据库）的开创与验证 |
+| [eleonne/synology-tagger](https://github.com/eleonne/synology-tagger) | 最早验证了"为 Synology Photos 数据库直写标签"的可行性，本项目的思路来源 |
 | [Ultralytics YOLOv8](https://github.com/ultralytics/ultralytics) | 物体检测模型（**AGPL-3.0**，权重衍生使用需遵循其许可） |
 | [RapidOCR](https://github.com/RapidAI/RapidOCR) | 中文 OCR 引擎与模型（Apache-2.0） |
 | [Chinese-CLIP](https://github.com/OFA-Sys/Chinese-CLIP)（阿里达摩院） | 中文图文对比学习模型（Apache-2.0），本项目主力识别引擎 |
