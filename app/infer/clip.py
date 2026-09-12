@@ -29,14 +29,19 @@ def _profile(model_name: str) -> dict:
             "prompt_side": "en"}
 
 
+_vocab_cache = {"mtime": None, "data": None}
+
+
 def load_vocab() -> dict:
-    """内置词表 + 用户覆盖（/config/vocab.json）。带 _mtime 指纹用于缓存失效。"""
+    """内置词表 + 用户覆盖（/config/vocab.json）。mtime 未变时直接用缓存。"""
     from .. import config
-    data = json.load(open(VOCAB_BUILTIN, "r", encoding="utf-8"))
     user_path = os.path.join(config.CONFIG_DIR, "vocab.json")
-    mtime = os.path.getmtime(VOCAB_BUILTIN)
+    mtime = os.path.getmtime(user_path) if os.path.isfile(user_path) \
+        else os.path.getmtime(VOCAB_BUILTIN)
+    if _vocab_cache["mtime"] == mtime and _vocab_cache["data"] is not None:
+        return _vocab_cache["data"]
+    data = json.load(open(VOCAB_BUILTIN, "r", encoding="utf-8"))
     if os.path.isfile(user_path):
-        mtime = os.path.getmtime(user_path)
         try:
             user = json.load(open(user_path, "r", encoding="utf-8"))
             if isinstance(user, dict) and isinstance(user.get("tags"), list):
@@ -46,7 +51,9 @@ def load_vocab() -> dict:
             pass
     tags = [t for t in data["tags"]
             if isinstance(t, dict) and t.get("zh") and t.get("en")]
-    return {"version": data.get("version", 1), "tags": tags, "_mtime": mtime}
+    result = {"version": data.get("version", 1), "tags": tags, "_mtime": mtime}
+    _vocab_cache.update(mtime=mtime, data=result)
+    return result
 
 
 def _encode_text(sess_ent, texts: list, prof: dict) -> np.ndarray:

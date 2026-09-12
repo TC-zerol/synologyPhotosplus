@@ -106,8 +106,11 @@ class Matcher:
                         if c and c not in (".",)]
         candidates = [folder_comps + [filename]]
         if owner_name:
-            candidates.append([owner_name.lower(), "Photos"]
-                              + folder_comps + [filename])
+            o = owner_name.lower()
+            # 布局一：homes/<user>/Photos/<目录>（个人空间标准布局）
+            candidates.append([o, "Photos"] + folder_comps + [filename])
+            # 布局二：homes/<user>/<目录>（MobileBackup 等直接挂用户根）
+            candidates.append([o] + folder_comps + [filename])
         ambiguous = False
         for cand in candidates:
             path, amb = self._lookup(maps, multi, cand)

@@ -67,11 +67,23 @@ async def login(request: Request):
 
 # ---------------------------------------------------------------- 引导数据
 
+_stats_cache = {"t": 0.0, "data": None}
+
+
+def _stats_cached() -> dict:
+    """stats 含 8 个 COUNT 聚合，多客户端 2s 轮询时做 1s 微缓存。"""
+    now = time.time()
+    if now - _stats_cache["t"] > 1.0 or _stats_cache["data"] is None:
+        _stats_cache["data"] = store.stats()
+        _stats_cache["t"] = now
+    return _stats_cache["data"]
+
+
 @app.get("/api/status", dependencies=[Depends(_auth)])
 async def status_light():
     """轻量状态接口：供页面高频轮询，不返回词表等大对象。"""
     cur = model_version(config.load())
-    return {"status": PIPELINE.status(), "stats": store.stats(),
+    return {"status": PIPELINE.status(), "stats": _stats_cached(),
             "stale": store.stale_count(cur),
             "stale_pending": store.stale_pending_count(cur)}
 
@@ -500,8 +512,11 @@ async def serve_file(path: str):
         resp = _try(cand)
         if resp:
             return resp
-        if resp is None and \
-                os.path.splitext(cand)[1].lower() in util.RAW_EXTS:
+        ext_low = os.path.splitext(cand)[1].lower()
+        if resp is None and (ext_low in util.RAW_EXTS
+                             or ext_low in (".heic", ".heif", ".tif", ".tiff",
+                                            ".avif")):
+            # 浏览器无法直接显示的格式：回源群晖在 @eaDir 生成的缩略图
             ea_thumb = util.find_ea_thumb(cand)
             if ea_thumb:
                 resp = _try(ea_thumb)

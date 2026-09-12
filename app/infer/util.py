@@ -80,11 +80,27 @@ def imread_any(path: str, reduce_scale: int = None):
     if os.path.splitext(path)[1].lower() in RAW_EXTS:
         return _imread_raw(path)
     _ensure_heif()
-    try:
-        from PIL import Image, ImageOps
-        with Image.open(path) as im:
-            im = ImageOps.exif_transpose(im)
+    last_err = None
+    for hdr_to_8bit in (False, True):   # 第二次尝试：HDR(10bit) 降为 8bit
+        try:
+            from PIL import Image, ImageOps
+            if hdr_to_8bit:
+                import pillow_heif
+                im_heif = pillow_heif.open_heif(path, convert_hdr_to_8bit=True)
+                im = Image.frombytes("RGB" if im_heif.mode == "RGB" else im_heif.mode,
+                                     im_heif.size, bytes(im_heif.data))
+                im = ImageOps.exif_transpose(im)
+            else:
+                im = Image.open(path)
+                im = ImageOps.exif_transpose(im)
             im = im.convert("RGB")
             return cv2.cvtColor(np.asarray(im), cv2.COLOR_RGB2BGR)
-    except Exception:
-        return None
+        except Exception as e:
+            last_err = e
+    global last_read_error
+    last_read_error = f"{path}: {last_err}" if last_err else f"{path}: 未知原因"
+    return None
+
+
+# 最近一次图片读取失败的底层原因（pipeline 记日志用）
+last_read_error = ""

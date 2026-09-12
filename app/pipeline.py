@@ -379,7 +379,8 @@ class Pipeline:
         # OCR/CLIP 计算量与像素数正相关，大图提速数倍
         img = util.imread_any(path, reduce_scale=2)
         if img is None:
-            raise ValueError("图片读取失败（相机 RAW 需要 rawpy 支持）")
+            raise ValueError(f"图片读取失败: "
+                             f"{util.last_read_error or '未知原因'}")
         img = util.downscale(img, 2000)
         # 各引擎独立容错：单个引擎失败只少一类标签，不连累整张图
         if want("detect"):
