@@ -6,6 +6,10 @@
 
 [English](README.en.md) · 简体中文
 
+![Web 控制台](docs/screenshot-dashboard.png)
+
+**打完标，直接在手机 App 的搜索框里搜**——`狗`、`发票`、`海边日落`、`聊天记录截图`…标签写入 Synology Photos 官方数据库（`general_tag`），**不用换 App、不用登录第三方系统**，家人手机上的官方 Photos 就能搜到。
+
 </div>
 
 ---
@@ -22,6 +26,7 @@
 
 | | |
 |---|---|
+| 📱 **手机 App 直接可搜** | 标签直写官方数据库，**任何登录该 NAS 的设备打开 Synology Photos 即可搜索**，全家共享 |
 | 🔍 **物体检测** | YOLOv8（ONNX，COCO 80 类，中英双语标签） |
 | 🧠 **语义标签** | 中文 CLIP ViT-L 零样本打标，**466 类可编辑中文词表**（对齐华为图库等主流相册分类体系） |
 | 📝 **中文 OCR** | RapidOCR（PP-OCRv4 ONNX）：发票号、单据、聊天截图全部可检索 |

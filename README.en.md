@@ -6,6 +6,14 @@
 
 简体中文 · [English](README.en.md) · [中文文档](README.md)
 
+![Web console](docs/screenshot-dashboard.png)
+
+**Once tagged, search directly in the official phone app** — type `dog`, `invoice`,
+`sunset at the beach`, `chat screenshot`… Tags are written into the official Synology
+Photos database (`general_tag`), so **there is no new app to install and no third-party
+service to log into** — the stock Synology Photos app on every family member's phone
+finds them instantly.
+
 </div>
 
 ---
@@ -22,6 +30,7 @@
 
 | | |
 |---|---|
+| 📱 **Searchable in the official app** | Tags are written straight into the official database — **open Synology Photos on any device logged into the NAS and search**, shared with the whole family |
 | 🔍 **Object detection** | YOLOv8 (ONNX, COCO-80, bilingual tags) |
 | 🧠 **Semantic tags** | Chinese-CLIP ViT-L zero-shot tagging with an **editable 466-tag Chinese vocabulary** (aligned with mainstream phone gallery taxonomies) |
 | 📝 **Chinese OCR** | RapidOCR (PP-OCRv4 ONNX): invoice numbers, receipts, chat screenshots — all searchable |
