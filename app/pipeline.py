@@ -452,8 +452,12 @@ class Pipeline:
                     model = (ex.get(272) or "").strip()
                 if model:
                     cam = (f"{make} {model}".strip()
-                           if model.lower().find(make.lower()) != 0 else model)
-                    if cam and cam not in {t[0] for t in tags}:
+                           if make and model.lower().find(make.lower()) != 0
+                           else model)
+                    letters = sum(ch.isalpha() for ch in cam)
+                    # 合法型号（如 Apple iPhone 14 Pro / Canon EOS R6）至少
+                    # 6 字符且含 3 个以上字母；过滤截图自带的 Nov22/Crop 垃圾
+                    if len(cam) >= 6 and letters >= 3                             and cam not in {t[0] for t in tags}:
                         tags.append((cam, cam.lower(), None))
             except Exception:
                 pass

@@ -306,10 +306,14 @@ def stale_count(current_model_ver: str) -> int:
 
 
 def top_tags(limit=50) -> list:
+    # 按 name 聚合：同名标签在不同用户下是不同行（按用户隔离的设计），
+    # 词云显示时合并计数，避免"亲子游 1103 / 亲子游 759"的分裂观感
     return query(
-        "SELECT t.name AS name, COUNT(*) AS count FROM tag_rows r "
+        "SELECT name, SUM(cnt) AS count FROM ("
+        "SELECT t.name AS name, COUNT(*) AS cnt FROM tag_rows r "
         "JOIN tag_defs t ON t.db_name=r.db_name AND t.tag_row_id=r.tag_row_id "
-        "GROUP BY t.db_name, r.tag_row_id ORDER BY count DESC LIMIT ?", (limit,))
+        "GROUP BY t.db_name, r.tag_row_id) "
+        "GROUP BY name ORDER BY count DESC LIMIT ?", (limit,))
 
 
 def recent(limit=50) -> list:

@@ -19,13 +19,18 @@ def extract_lines(image_bgr: np.ndarray, conf_thr: float = 0.6) -> list:
     return [(r[1], float(r[2])) for r in res if float(r[2]) >= conf_thr and r[1].strip()]
 
 
-def keywords(lines: list, min_len: int = 2, max_kw: int = 24) -> list:
-    """从 OCR 行提取适合做标签的关键词（去重、保序）。
+# App UI 高频词/无检索价值词：截图里到处都是，打成标签只会污染词表
+STOPWORDS = {
+    "关注", "推荐", "评论", "点赞", "分享", "转发", "收藏", "首页", "我的",
+    "消息", "私信", "更多", "打开", "查看", "详情", "搜索", "登录", "注册",
+    "下载", "安装", "立即", "免费", "广告", "直播", "回放", "举报", "客服",
+    "确认", "取消", "删除", "编辑", "复制", "保存", "提交", "发送", "已读",
+    "全部", "其他", "今天", "昨天", "明天", "刚刚", " Crop ", "crop",
+}
 
-    - 中文片段 2~12 字直接作为关键词
-    - 拉丁/数字串 ≥3 字符作为关键词
-    - 整行较短(≤16字)且含中文时整行也保留（如"报销发票"）
-    """
+
+def keywords(lines: list, min_len: int = 2, max_kw: int = 24) -> list:
+    """从 OCR 行提取适合做标签的关键词（去重、保序、过滤噪声）。"""
     out, seen = [], set()
 
     def add(kw: str):
@@ -35,10 +40,14 @@ def keywords(lines: list, min_len: int = 2, max_kw: int = 24) -> list:
         low = kw.lower()
         if low in seen:
             return
-        # 最小长度：中文按字符数、拉丁按字符数
+        if low in STOPWORDS or kw in STOPWORDS:
+            return
         if len(kw) < min_len:
             return
         if len(kw) > 24:  # 过长的片段不适合做标签
+            return
+        # 纯数字/纯符号串（如"100""3:51"）没有检索价值
+        if not _CJK.search(kw) and not re.search(r"[A-Za-z]", kw):
             return
         seen.add(low)
         out.append(kw)
@@ -53,7 +62,10 @@ def keywords(lines: list, min_len: int = 2, max_kw: int = 24) -> list:
                 add(seg[:8])
         for seg in _LATIN.findall(text):
             add(seg)
-        if _CJK.search(text) and len(text) <= 16:
+        # 整行保留条件收紧：≤10 字、含中文、且不含数字/符号混排
+        # （"【9:51》退款已受理，原订单号"这类转账/通知长句不再是标签，
+        #  但全文仍在本地可搜）
+        if _CJK.search(text) and len(text) <= 10                 and not re.search(r"[0-9A-Za-z《》【】》:：/]", text):
             add(text)
         if len(out) >= max_kw:
             break
