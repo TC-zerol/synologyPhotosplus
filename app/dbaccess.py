@@ -372,26 +372,55 @@ def _escape(s: str) -> str:
     return s.replace("'", "''")
 
 
-ENUM_SQL = ("SELECT u.id, u.filename, u.type, COALESCE(u.createtime, 0) AS "
-            "createtime, COALESCE(u.mtime, 0) AS mtime, f.name AS folder_name, "
-            "f.id_user AS owner_id, COALESCE(ui.name, '') AS owner_name "
-            "FROM unit u JOIN folder f ON f.id = u.id_folder "
-            "LEFT JOIN user_info ui ON ui.id = f.id_user ORDER BY u.id")
+ENUM_SELECT = ("SELECT u.id, u.filename, u.type, COALESCE(u.createtime, 0) AS "
+               "createtime, COALESCE(u.mtime, 0) AS mtime, f.name AS folder_name, "
+               "f.id_user AS owner_id, COALESCE(ui.name, '') AS owner_name")
+ENUM_FROM = ("FROM unit u JOIN folder f ON f.id = u.id_folder "
+             "LEFT JOIN user_info ui ON ui.id = f.id_user")
 
-# 极老版本无 user_info 表时的降级查询（不引用 ui）
-ENUM_SQL_NOUI = ("SELECT u.id, u.filename, u.type, COALESCE(u.createtime, 0) AS "
-                 "createtime, COALESCE(u.mtime, 0) AS mtime, f.name AS folder_name, "
-                 "f.id_user AS owner_id, '' AS owner_name "
-                 "FROM unit u JOIN folder f ON f.id = u.id_folder ORDER BY u.id")
+# 逐级降级的枚举变体：geocoding 列名随版本有差异，探测到哪个用哪个
+ENUM_VARIANTS = [
+    # 1) 完整地理编码（country/province/city/town）
+    ("SELECT u.id, u.filename, u.type, COALESCE(u.createtime, 0) AS createtime, "
+     "COALESCE(u.mtime, 0) AS mtime, f.name AS folder_name, f.id_user AS owner_id, "
+     "COALESCE(ui.name, '') AS owner_name, COALESCE(gc.country, '') AS geo_country, "
+     "COALESCE(gc.province, '') AS geo_province, COALESCE(gc.city, '') AS geo_city, "
+     "COALESCE(gc.town, '') AS geo_town "
+     "FROM unit u JOIN folder f ON f.id = u.id_folder "
+     "LEFT JOIN user_info ui ON ui.id = f.id_user "
+     "LEFT JOIN geocoding_info gc ON gc.id_geocoding = u.id_geocoding "
+     "AND gc.lang = {lang} ORDER BY u.id"),
+    # 2) 仅 country/city
+    ("SELECT u.id, u.filename, u.type, COALESCE(u.createtime, 0) AS createtime, "
+     "COALESCE(u.mtime, 0) AS mtime, f.name AS folder_name, f.id_user AS owner_id, "
+     "COALESCE(ui.name, '') AS owner_name, COALESCE(gc.country, '') AS geo_country, "
+     "'' AS geo_province, COALESCE(gc.city, '') AS geo_city, '' AS geo_town "
+     "FROM unit u JOIN folder f ON f.id = u.id_folder "
+     "LEFT JOIN user_info ui ON ui.id = f.id_user "
+     "LEFT JOIN geocoding_info gc ON gc.id_geocoding = u.id_geocoding "
+     "AND gc.lang = {lang} ORDER BY u.id"),
+    # 3) 无 user_info / 无 geocoding 的极老版本
+    ("SELECT u.id, u.filename, u.type, COALESCE(u.createtime, 0) AS createtime, "
+     "COALESCE(u.mtime, 0) AS mtime, f.name AS folder_name, f.id_user AS owner_id, "
+     "'' AS owner_name, '' AS geo_country, '' AS geo_province, "
+     "'' AS geo_city, '' AS geo_town "
+     "FROM unit u JOIN folder f ON f.id = u.id_folder ORDER BY u.id"),
+]
 
 
-def enumerate_units(db: str) -> list:
-    """返回 [{unit_id, filename, type, createtime, folder_name, owner_id, owner_name}]"""
+def enumerate_units(db: str, geocoding_lang: int = 0) -> list:
+    """返回 [{unit_id, filename, type, createtime, folder_name, owner_id,
+    owner_name, geo_country, geo_province, geo_city, geo_town}]"""
     t = transport()
-    try:
-        rows = t.query_json(db, ENUM_SQL)
-    except DBError:
-        rows = t.query_json(db, ENUM_SQL_NOUI)
+    rows = None
+    for variant in ENUM_VARIANTS:
+        try:
+            rows = t.query_json(db, variant.format(lang=int(geocoding_lang)))
+            break
+        except DBError:
+            continue
+    if rows is None:
+        raise DBError(f"{db}: 枚举 unit 表失败（所有 SQL 变体均不可用）")
     units = []
     for r in rows:
         try:
@@ -403,6 +432,10 @@ def enumerate_units(db: str) -> list:
                 "folder_name": r["folder_name"] or "",
                 "owner_id": int(r["owner_id"] or 0),
                 "owner_name": r.get("owner_name") or "",
+                "geo_country": (r.get("geo_country") or "").strip(),
+                "geo_province": (r.get("geo_province") or "").strip(),
+                "geo_city": (r.get("geo_city") or "").strip(),
+                "geo_town": (r.get("geo_town") or "").strip(),
             })
         except (KeyError, TypeError, ValueError):
             continue

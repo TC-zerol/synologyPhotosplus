@@ -287,6 +287,7 @@ function fillSettings(cfg) {
   $("#cfg-ocr-conf").value = cfg.ocr.confidence;
   $("#cfg-ocr-minlen").value = cfg.ocr.min_kw_len;
   $("#cfg-ocr-maxkw").value = cfg.ocr.max_kw;
+  $("#cfg-exif-enabled").checked = cfg.exif ? cfg.exif.enabled : true;
   $("#cfg-video-enabled").checked = cfg.video.enabled;
   $("#cfg-video-int").value = cfg.video.sample_interval;
   $("#cfg-video-max").value = cfg.video.max_frames;
@@ -321,6 +322,9 @@ $("#btn-save-settings").onclick = async () => {
       confidence: parseFloat($("#cfg-ocr-conf").value),
       min_kw_len: parseInt($("#cfg-ocr-minlen").value),
       max_kw: parseInt($("#cfg-ocr-maxkw").value),
+    },
+    exif: {
+      enabled: $("#cfg-exif-enabled").checked,
     },
     video: {
       enabled: $("#cfg-video-enabled").checked,

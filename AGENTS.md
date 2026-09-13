@@ -56,6 +56,7 @@ clip/cnclip.onnx(中文CLIP ViT-L int8，**默认**，配 cnclip_tokenizer.json�
   - `folder`：id, name(路径形态因版本而异！), id_user
   - `user_info`：id, name（可能不存在，代码有降级 SQL `ENUM_SQL_NOUI`）
   - `general_tag`：id, id_user, name, count, normalized_name
+  - `geocoding_info`：id_geocoding, lang, country/province/city/town（只读，供地点标签）
   - `many_unit_has_many_general_tag`：id_unit, id_general_tag
 - **连接方式（默认 ssh）**：容器经 SSH 到 NAS，以 `sudo -S -p '' -u postgres psql`
   执行（root 登录则 `sudo -n -u postgres`）。DSM 的 psql 路径不定，`_probe_bin`
@@ -106,6 +107,8 @@ clip/cnclip.onnx(中文CLIP ViT-L int8，**默认**，配 cnclip_tokenizer.json�
 | 想做什么 | 改哪里 |
 |---|---|
 | 加一个识别引擎 | `infer/` 新模块 → config.py 加开关 → pipeline._analyze 加分支(try/except+engines) → `_missing_engines`/`model_version` 纳入 → 前端设置页加控件 |
+| 引擎说明 | detect/clip/ocr 走像素解码；exif 只读元数据（日期取 unit.takentime、地点取 geocoding_info 只读联查、相机取 EXIF 头），only={"exif"} 补全时零图片 IO |
+| 历史照片补新引擎 | `_missing_engines` 规则：engines 键显式 False → 补；键不存在 → 仅 exif 视为待补（其他引擎视为旧版全成功），从而对存量照片做一次性轻量回填 |
 | 改写库 SQL | 只改 `dbaccess.py`（注意不变量 2/3/4） |
 | 加 Web 接口 | `main.py`；耗时操作必须用 `_bg_start` 后台线程 + `/api/bg/status` 轮询（模式照抄 backup/dbtest/restore），**别在 async 路由里同步长跑**（会卡死页面） |
 | 改前端 | `static/`，原生 JS；`app.js` 的 `tick()` 2 秒轮询 `/api/status` |

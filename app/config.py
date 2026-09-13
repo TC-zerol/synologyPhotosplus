@@ -57,6 +57,10 @@ DEFAULTS = {
         "max_kw": 12,              # 单张图片 OCR 关键词标签上限
         "max_text_len": 4000,      # 本地全文库存的最大字符数
     },
+    "exif": {
+        "enabled": True,          # 元数据标签：拍摄日期(年/月/季节)、地点(国家/省/市)、相机型号
+        "geocoding_lang": 0,      # 群晖地理编码语言索引（0=默认，部分安装中文在其他 lang 值）
+    },
     "video": {
         "enabled": False,
         "sample_interval": 5.0,    # 每隔多少秒抽一帧

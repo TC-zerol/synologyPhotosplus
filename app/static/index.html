@@ -175,6 +175,13 @@
           <p class="hint">设上限的原因：一张截图可能识别出几十行文字，若全部写成
           Photos 标签会把标签列表撑爆（App 的标签搜索建议会变得很乱）。
           因此只把最重要的前 N 个词写入标签，其余内容仍在本地全文索引里可搜。</p>
+          <h3 style="margin-top:20px">元数据标签（EXIF）</h3>
+          <p class="hint">从照片的拍摄时间与位置信息生成检索标签：
+          <b>年 / 月 / 季节</b>（如"2024年""夏季"）、<b>地点</b>（国家/省/市，
+          读取群晖已反解的地理编码，离线零依赖）、<b>相机型号</b>。
+          纯元数据读取，几乎不增加耗时。</p>
+          <label class="switch-row"><span>启用（推荐）</span>
+            <input type="checkbox" id="cfg-exif-enabled" class="switch"></label>
           <h3 style="margin-top:20px">视频分析</h3>
           <p class="hint">对视频按间隔抽帧，用上面的 YOLO 识别每帧物体后合并。
           CPU 消耗大，默认关闭。</p>

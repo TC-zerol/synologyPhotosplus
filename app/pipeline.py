@@ -41,8 +41,43 @@ def _missing_engines(st: dict, cfg: dict) -> list:
         return []
     enabled = [k for k, on in (("detect", cfg["detect"]["enabled"]),
                                ("clip", cfg["clip"]["enabled"]),
-                               ("ocr", cfg["ocr"]["enabled"])) if on]
-    return [k for k in enabled if done.get(k) is False]
+                               ("ocr", cfg["ocr"]["enabled"]),
+                               ("exif", cfg.get("exif", {}).get("enabled"))) if on]
+    missing = [k for k in enabled if done.get(k) is False]
+    # exif 是后加入的引擎：历史记录中没有该 key 时也纳入一次性补全
+    if "exif" in enabled and "exif" not in done:
+        missing.append("exif")
+    return missing
+
+
+def _exif_tags(u: dict, cfg: dict, tags: list) -> None:
+    """从拍摄时间与群晖地理编码数据生成元数据标签，追加到 tags。"""
+    exif_cfg = cfg.get("exif", {})
+    names = {t[0] for t in tags}
+
+    def add(name: str):
+        name = name.strip()
+        if name and name not in names:
+            names.add(name)
+            tags.append((name, name.lower(), None))
+
+    ts = int(u.get("takentime") or 0) or int(u.get("createtime") or 0)
+    if exif_cfg.get("date_tags", True) and ts > 0:
+        lt = time.localtime(ts)
+        add(f"{lt.tm_year}年")
+        add(f"{lt.tm_mon}月")
+        # 3~5 春季 / 6~8 夏季 / 9~11 秋季 / 12~2 冬季
+        add(("春季", "夏季", "秋季", "冬季")[((lt.tm_mon - 3) % 12) // 3])
+    if exif_cfg.get("location_tags", True):
+        parts = [p.strip() for p in (u.get("geo_country"), u.get("geo_province"),
+                                     u.get("geo_city"), u.get("geo_town"))
+                 if p and p.strip()]
+        # 去掉被更具体地名包含的冗余（"上海市" ⊂ "上海市浦东新区" → 只留后者）
+        for p in parts:
+            if not any(p != q and p in q for q in parts):
+                add(p)
+    if exif_cfg.get("camera_tags", True) and u.get("camera"):
+        add(u["camera"])
 
 
 def model_version(cfg: dict) -> str:
@@ -191,8 +226,9 @@ class Pipeline:
         if not dbs:
             raise dbaccess.DBError("未找到 synofoto 数据库，请检查数据库连接配置")
         all_units = []
+        lang = cfg.get("exif", {}).get("geocoding_lang", 0)
         for db in dbs:
-            units = dbaccess.enumerate_units(db)
+            units = dbaccess.enumerate_units(db, geocoding_lang=lang)
             store.log("info", f"数据库 {db}: {len(units)} 个媒体文件")
             all_units.extend((db, u) for u in units)
         return dbs, all_units
@@ -309,7 +345,8 @@ class Pipeline:
                 # rel_path 记录匹配到的真实容器路径，供缩略图直接定位
                 try:
                     result = self._analyze(path, cfg, vocab, model_ver,
-                                           only=set(missing) if missing else None)
+                                           only=set(missing) if missing else None,
+                                           unit=u)
                     if missing:
                         # 单引擎补全：合并旧标签，只把新增部分送去写库
                         result = self._merge_backfill(db, u["unit_id"], result,
@@ -347,7 +384,7 @@ class Pipeline:
         self._finish(job)
 
     def _analyze(self, path: str, cfg: dict, vocab, model_ver: str,
-                 only=None) -> dict:
+                 only=None, unit: dict = None) -> dict:
         """only: 仅运行这些引擎（单引擎补全用）；None=全部启用引擎。"""
         ext = os.path.splitext(path)[1].lower()
         tags = []           # [(name, normalized, score|None)]
@@ -357,6 +394,20 @@ class Pipeline:
         lang = cfg["tagging"].get("language", "bilingual")
         want = (lambda k: cfg.get(k, {}).get("enabled") and
                 (only is None or k in only))
+
+        # EXIF 元数据引擎：只读数据库字段与 EXIF 头，不解码像素。
+        # only={"exif"} 的补全场景零图片 IO。
+        if want("exif"):
+            engines["exif"] = False
+            try:
+                if unit is not None:
+                    u2 = dict(unit)
+                    if not u2.get("camera") and ext not in util.RAW_EXTS                             and (only is None or only == {"exif"} and False or True):
+                        pass
+                    _exif_tags(u2, cfg, tags)
+                engines["exif"] = True
+            except Exception as e:
+                store.log("error", f"EXIF 引擎失败（跳过该引擎）{path}: {e}")
         if ext in util.VIDEO_EXTS:
             engines["detect"] = False
             dets = []
@@ -372,16 +423,40 @@ class Pipeline:
             for cls_id, s in dets:
                 name, nn = yolo.labels(cls_id, lang)
                 tags.append((name, nn, s))
+            if want("exif") and unit is not None:
+                try:
+                    _exif_tags(unit, cfg, tags)
+                    engines["exif"] = True
+                except Exception as e:
+                    store.log("error", f"EXIF 引擎失败（跳过该引擎）{path}: {e}")
             return {"status": "analyzed" if tags else "empty", "tags": tags,
                     "ocr_text": "", "embed": None, "engines": engines}
 
         # 打标不需要全分辨率：JPEG 半分辨率解码 + 长边压到 2000，
         # OCR/CLIP 计算量与像素数正相关，大图提速数倍
+        only_exif = only == {"exif"}
+        if only_exif:
+            return {"status": "analyzed" if tags else "empty", "tags": tags,
+                    "ocr_text": "", "embed": None, "engines": engines}
         img = util.imread_any(path, reduce_scale=2)
         if img is None:
             raise ValueError(f"图片读取失败: "
                              f"{util.last_read_error or '未知原因'}")
         img = util.downscale(img, 2000)
+        if cfg.get("exif", {}).get("camera_tags", True) and                 ext not in util.RAW_EXTS and (only is None):
+            try:
+                from PIL import Image
+                with Image.open(path) as im:
+                    ex = im.getexif()
+                    make = (ex.get(271) or "").strip()
+                    model = (ex.get(272) or "").strip()
+                if model:
+                    cam = (f"{make} {model}".strip()
+                           if model.lower().find(make.lower()) != 0 else model)
+                    if cam and cam not in {t[0] for t in tags}:
+                        tags.append((cam, cam.lower(), None))
+            except Exception:
+                pass
         if util.last_read_note:
             store.log("info", "分析回退 " + util.last_read_note)
             util.last_read_note = ""
