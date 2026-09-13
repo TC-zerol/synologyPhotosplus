@@ -62,8 +62,13 @@ def _exif_tags(u: dict, cfg: dict, tags: list) -> None:
             tags.append((name, name.lower(), None))
 
     ts = int(u.get("takentime") or 0) or int(u.get("createtime") or 0)
+    if ts > 100_000_000_000:      # 毫秒时间戳（群晖部分版本）→ 秒
+        ts //= 1000
     if exif_cfg.get("date_tags", True) and ts > 0:
         lt = time.localtime(ts)
+        if not (1970 <= lt.tm_year <= 2100):
+            lt = None
+    if exif_cfg.get("date_tags", True) and lt is not None:
         add(f"{lt.tm_year}年")
         add(f"{lt.tm_mon}月")
         # 3~5 春季 / 6~8 夏季 / 9~11 秋季 / 12~2 冬季
@@ -239,6 +244,7 @@ class Pipeline:
         if not mounts:
             mounts = ["/photos"]   # 未配置时自动索引 /photos 全树
             store.log("info", "未配置挂载，自动索引 /photos")
+        self._cleanup_bad_year_tags()
         missing = registry.missing_models(cfg)
         if missing:
             raise RuntimeError(
@@ -663,6 +669,36 @@ class Pipeline:
         except Exception as e:
             store.log("warn", f"备份失败（继续写库）: {e}")
             job._backup_done = True   # 避免每批都重试备份阻塞任务
+
+    def _cleanup_bad_year_tags(self):
+        """一次性清理：毫秒时间戳误写出的"54854年"类标签（仅本工具创建的行）。"""
+        import re as _re
+        bad = [r for r in store.query(
+            "SELECT db_name, tag_row_id, name FROM tag_defs")
+            if _re.match(r"^\d{5,}年$", r["name"] or "")]
+        if not bad:
+            return
+        by_db = {}
+        for r in bad:
+            by_db.setdefault(r["db_name"], []).append(r["tag_row_id"])
+        for db, ids in by_db.items():
+            id_list = ",".join(map(str, ids))
+            try:
+                dbaccess.transport().exec_script(db, chr(10).join([
+                    "BEGIN;",
+                    f"DELETE FROM many_unit_has_many_general_tag "
+                    f"WHERE id_general_tag IN ({id_list});",
+                    f"DELETE FROM general_tag WHERE id IN ({id_list});",
+                    "COMMIT;"]))
+                store.execute("DELETE FROM tag_rows WHERE db_name=? AND "
+                              "tag_row_id IN (" + id_list + ")", (db,))
+                store.execute("DELETE FROM tag_defs WHERE db_name=? AND "
+                              "tag_row_id IN (" + id_list + ")", (db,))
+                store.log("warn", f"{db}: 已清理毫秒时间戳误写的标签行 "
+                                  f"{len(ids)} 个（如 54854年）")
+            except Exception as e:
+                store.log("error", f"{db}: 清理异常年份标签失败: {e}")
+                return
 
     def _invalidate_stale_pending(self, cfg: dict):
         """待写结果若来自旧模型/词表，转为待重分析（下次计划自动重跑）。"""
