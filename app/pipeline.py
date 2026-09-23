@@ -11,11 +11,12 @@
 import json
 import os
 import queue
+import re
 import threading
 import time
 import traceback
 
-from . import config, dbaccess, matcher, store
+from . import config, dbaccess, geo, matcher, store
 from .infer import clip as clip_infer
 from .infer import ocr as ocr_infer
 from .infer import registry, util, yolo, video as video_infer
@@ -51,18 +52,22 @@ def _missing_engines(st: dict, cfg: dict) -> list:
 
 
 def _exif_tags(u: dict, cfg: dict, tags: list) -> None:
-    """从拍摄时间与群晖地理编码数据生成元数据标签，追加到 tags。"""
+    """从拍摄时间与群晖地理编码数据生成元数据标签，追加到 tags。
+
+    地点标签：geo.attach_geo 已按"简体中文优先"选好语言行；
+    normalized_name 存"中文 英文"双语小写，Photos 搜索两种语言都能命中。
+    """
     exif_cfg = cfg.get("exif", {})
     names = {t[0] for t in tags}
 
-    def add(name: str):
+    def add(name: str, nn: str = ""):
         name = name.strip()
         if name and name not in names:
             names.add(name)
-            tags.append((name, name.lower(), None))
+            tags.append((name, (nn or name).lower(), None))
 
     ts = int(u.get("takentime") or 0) or int(u.get("createtime") or 0)
-    if ts > 100_000_000_000:      # 毫秒时间戳（群晖部分版本）→ 秒
+    while ts > 100_000_000_000:    # 毫秒/微秒时间戳（群晖部分版本）→ 秒
         ts //= 1000
     if exif_cfg.get("date_tags", True) and ts > 0:
         lt = time.localtime(ts)
@@ -74,15 +79,17 @@ def _exif_tags(u: dict, cfg: dict, tags: list) -> None:
         # 3~5 春季 / 6~8 夏季 / 9~11 秋季 / 12~2 冬季
         add(("春季", "夏季", "秋季", "冬季")[((lt.tm_mon - 3) % 12) // 3])
     if exif_cfg.get("location_tags", True):
-        parts = [p.strip() for p in (u.get("geo_country"), u.get("geo_province"),
-                                     u.get("geo_city"), u.get("geo_town"))
-                 if p and p.strip()]
+        zh = u.get("geo_zh") or {}
+        en = u.get("geo_en") or {}
+        parts = [(k, zh[k]) for k in geo.GEO_KEYS if zh.get(k)]
         # 去掉被更具体地名包含的冗余（"上海市" ⊂ "上海市浦东新区" → 只留后者）
-        for p in parts:
-            if not any(p != q and p in q for q in parts):
-                add(p)
-    if exif_cfg.get("camera_tags", True) and u.get("camera"):
-        add(u["camera"])
+        for k, p in parts:
+            if any(p != q and p in q for _k, q in parts):
+                continue
+            e = en.get(k) or ""
+            nn = f"{p} {e}" if e and e.lower() != p.lower() else p
+            add(p, nn)
+    # 相机型号标签已下线（2026-09 起不再写入：对搜索无价值、污染标签建议列表）。
 
 
 def model_version(cfg: dict) -> str:
@@ -231,9 +238,29 @@ class Pipeline:
         if not dbs:
             raise dbaccess.DBError("未找到 synofoto 数据库，请检查数据库连接配置")
         all_units = []
-        lang = cfg.get("exif", {}).get("geocoding_lang", 0)
+        prefer_lang = int(cfg.get("exif", {}).get("geocoding_lang", 0) or 0)
+        # 全局用户表：个人空间库（synofoto_personal_N）常缺 user_info，
+        # owner_name 为空会让跨用户同名文件（如多人 MobileBackup/iPhone）
+        # 无法按属主消歧。先从所有有 user_info 的库汇总 id→name 备用。
+        user_map = {}
         for db in dbs:
-            units = dbaccess.enumerate_units(db, geocoding_lang=lang)
+            for r in dbaccess.list_users(db):
+                if r["name"]:
+                    user_map.setdefault(r["id"], r["name"])
+        for db in dbs:
+            units = dbaccess.enumerate_units(db)
+            for u in units:
+                if not u["owner_name"] and u["owner_id"]:
+                    u["owner_name"] = user_map.get(u["owner_id"], "")
+                if not u["owner_name"]:
+                    # 个人空间库名自带 owner id，最后兜底
+                    m = re.match(r"^synofoto_personal_(\d+)$", db)
+                    if m:
+                        u["owner_name"] = user_map.get(int(m.group(1)), "")
+            exif_cfg = cfg.get("exif", {})
+            if (exif_cfg.get("enabled", True)
+                    and exif_cfg.get("location_tags", True)):
+                geo.attach_geo(db, units, prefer_lang)
             store.log("info", f"数据库 {db}: {len(units)} 个媒体文件")
             all_units.extend((db, u) for u in units)
         return dbs, all_units
@@ -244,7 +271,6 @@ class Pipeline:
         if not mounts:
             mounts = ["/photos"]   # 未配置时自动索引 /photos 全树
             store.log("info", "未配置挂载，自动索引 /photos")
-        self._cleanup_bad_year_tags()
         missing = registry.missing_models(cfg)
         if missing:
             raise RuntimeError(
@@ -407,10 +433,7 @@ class Pipeline:
             engines["exif"] = False
             try:
                 if unit is not None:
-                    u2 = dict(unit)
-                    if not u2.get("camera") and ext not in util.RAW_EXTS                             and (only is None or only == {"exif"} and False or True):
-                        pass
-                    _exif_tags(u2, cfg, tags)
+                    _exif_tags(unit, cfg, tags)
                 engines["exif"] = True
             except Exception as e:
                 store.log("error", f"EXIF 引擎失败（跳过该引擎）{path}: {e}")
@@ -449,24 +472,6 @@ class Pipeline:
             raise ValueError(f"图片读取失败: "
                              f"{util.last_read_error or '未知原因'}")
         img = util.downscale(img, 2000)
-        if cfg.get("exif", {}).get("camera_tags", True) and                 ext not in util.RAW_EXTS and (only is None):
-            try:
-                from PIL import Image
-                with Image.open(path) as im:
-                    ex = im.getexif()
-                    make = (ex.get(271) or "").strip()
-                    model = (ex.get(272) or "").strip()
-                if model:
-                    cam = (f"{make} {model}".strip()
-                           if make and model.lower().find(make.lower()) != 0
-                           else model)
-                    letters = sum(ch.isalpha() for ch in cam)
-                    # 合法型号（如 Apple iPhone 14 Pro / Canon EOS R6）至少
-                    # 6 字符且含 3 个以上字母；过滤截图自带的 Nov22/Crop 垃圾
-                    if len(cam) >= 6 and letters >= 3                             and cam not in {t[0] for t in tags}:
-                        tags.append((cam, cam.lower(), None))
-            except Exception:
-                pass
         if util.last_read_note:
             store.log("info", "分析回退 " + util.last_read_note)
             util.last_read_note = ""
@@ -669,36 +674,6 @@ class Pipeline:
         except Exception as e:
             store.log("warn", f"备份失败（继续写库）: {e}")
             job._backup_done = True   # 避免每批都重试备份阻塞任务
-
-    def _cleanup_bad_year_tags(self):
-        """一次性清理：毫秒时间戳误写出的"54854年"类标签（仅本工具创建的行）。"""
-        import re as _re
-        bad = [r for r in store.query(
-            "SELECT db_name, tag_row_id, name FROM tag_defs")
-            if _re.match(r"^\d{5,}年$", r["name"] or "")]
-        if not bad:
-            return
-        by_db = {}
-        for r in bad:
-            by_db.setdefault(r["db_name"], []).append(r["tag_row_id"])
-        for db, ids in by_db.items():
-            id_list = ",".join(map(str, ids))
-            try:
-                dbaccess.transport().exec_script(db, chr(10).join([
-                    "BEGIN;",
-                    f"DELETE FROM many_unit_has_many_general_tag "
-                    f"WHERE id_general_tag IN ({id_list});",
-                    f"DELETE FROM general_tag WHERE id IN ({id_list});",
-                    "COMMIT;"]))
-                store.execute("DELETE FROM tag_rows WHERE db_name=? AND "
-                              "tag_row_id IN (" + id_list + ")", (db,))
-                store.execute("DELETE FROM tag_defs WHERE db_name=? AND "
-                              "tag_row_id IN (" + id_list + ")", (db,))
-                store.log("warn", f"{db}: 已清理毫秒时间戳误写的标签行 "
-                                  f"{len(ids)} 个（如 54854年）")
-            except Exception as e:
-                store.log("error", f"{db}: 清理异常年份标签失败: {e}")
-                return
 
     def _invalidate_stale_pending(self, cfg: dict):
         """待写结果若来自旧模型/词表，转为待重分析（下次计划自动重跑）。"""

@@ -33,7 +33,7 @@ finds them instantly.
 | 📱 **Searchable in the official app** | Tags are written straight into the official database — **open Synology Photos on any device logged into the NAS and search**, shared with the whole family |
 | 🔍 **Object detection** | YOLOv8 (ONNX, COCO-80, bilingual tags) |
 | 🧠 **Semantic tags** | Chinese-CLIP ViT-L zero-shot tagging with an **editable 466-tag Chinese vocabulary** (aligned with mainstream phone gallery taxonomies) |
-| 📅 **Time & location tags** | "2024年" / "夏季" / city & province names (from EXIF and Synology's own geocoding) / camera model — metadata-only, zero extra cost |
+| 📅 **Time & location tags** | "2024年" / "夏季" / city & province names (from Synology's own geocoding, Simplified Chinese preferred automatically) — metadata-only, zero extra cost |
 | 📝 **Chinese OCR** | RapidOCR (PP-OCRv4 ONNX): invoice numbers, receipts, chat screenshots — all searchable |
 | 🔎 **Semantic image search** | Natural-language image search ("sunset at the beach", "invoice") — Immich-style, powered by CLIP embeddings |
 | 🖼 **Live result preview** | Inspect per-photo tags and confidence percentages while scanning; tune thresholds on the fly |

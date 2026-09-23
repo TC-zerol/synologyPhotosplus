@@ -372,55 +372,54 @@ def _escape(s: str) -> str:
     return s.replace("'", "''")
 
 
-ENUM_SELECT = ("SELECT u.id, u.filename, u.type, COALESCE(u.createtime, 0) AS "
-               "createtime, COALESCE(u.mtime, 0) AS mtime, f.name AS folder_name, "
-               "f.id_user AS owner_id, COALESCE(ui.name, '') AS owner_name")
-ENUM_FROM = ("FROM unit u JOIN folder f ON f.id = u.id_folder "
-             "LEFT JOIN user_info ui ON ui.id = f.id_user")
+# ---------------------------------------------------------------- 表结构探测
+#
+# 群晖 Photos 不同版本/空间类型的表结构有差异（user_info 可能不存在、
+# geocoding_info 列名随版本变化、unit 可能没有 id_geocoding 列）。
+# 用 information_schema 一次性探测，按实际结构拼 SQL，替代逐级降级重试。
 
-# 逐级降级的枚举变体：geocoding 列名随版本有差异，探测到哪个用哪个
-ENUM_VARIANTS = [
-    # 1) 完整地理编码（country/province/city/town）
-    ("SELECT u.id, u.filename, u.type, COALESCE(u.createtime, 0) AS createtime, "
-     "COALESCE(u.mtime, 0) AS mtime, f.name AS folder_name, f.id_user AS owner_id, "
-     "COALESCE(ui.name, '') AS owner_name, COALESCE(gc.country, '') AS geo_country, "
-     "COALESCE(gc.province, '') AS geo_province, COALESCE(gc.city, '') AS geo_city, "
-     "COALESCE(gc.town, '') AS geo_town "
-     "FROM unit u JOIN folder f ON f.id = u.id_folder "
-     "LEFT JOIN user_info ui ON ui.id = f.id_user "
-     "LEFT JOIN geocoding_info gc ON gc.id_geocoding = u.id_geocoding "
-     "AND gc.lang = {lang} ORDER BY u.id"),
-    # 2) 仅 country/city
-    ("SELECT u.id, u.filename, u.type, COALESCE(u.createtime, 0) AS createtime, "
-     "COALESCE(u.mtime, 0) AS mtime, f.name AS folder_name, f.id_user AS owner_id, "
-     "COALESCE(ui.name, '') AS owner_name, COALESCE(gc.country, '') AS geo_country, "
-     "'' AS geo_province, COALESCE(gc.city, '') AS geo_city, '' AS geo_town "
-     "FROM unit u JOIN folder f ON f.id = u.id_folder "
-     "LEFT JOIN user_info ui ON ui.id = f.id_user "
-     "LEFT JOIN geocoding_info gc ON gc.id_geocoding = u.id_geocoding "
-     "AND gc.lang = {lang} ORDER BY u.id"),
-    # 3) 无 user_info / 无 geocoding 的极老版本
-    ("SELECT u.id, u.filename, u.type, COALESCE(u.createtime, 0) AS createtime, "
-     "COALESCE(u.mtime, 0) AS mtime, f.name AS folder_name, f.id_user AS owner_id, "
-     "'' AS owner_name, '' AS geo_country, '' AS geo_province, "
-     "'' AS geo_city, '' AS geo_town "
-     "FROM unit u JOIN folder f ON f.id = u.id_folder ORDER BY u.id"),
-]
+_probe_cache = {}
 
 
-def enumerate_units(db: str, geocoding_lang: int = 0) -> list:
-    """返回 [{unit_id, filename, type, createtime, folder_name, owner_id,
-    owner_name, geo_country, geo_province, geo_city, geo_town}]"""
-    t = transport()
-    rows = None
-    for variant in ENUM_VARIANTS:
-        try:
-            rows = t.query_json(db, variant.format(lang=int(geocoding_lang)))
-            break
-        except DBError:
-            continue
-    if rows is None:
-        raise DBError(f"{db}: 枚举 unit 表失败（所有 SQL 变体均不可用）")
+def _probe_schema(db: str) -> dict:
+    if db in _probe_cache:
+        return _probe_cache[db]
+    cols = {}
+    try:
+        for r in transport().query_json(
+                db, "SELECT table_name, column_name FROM information_schema.columns "
+                    "WHERE table_name IN ('user_info', 'unit', 'geocoding_info')"):
+            cols.setdefault(r["table_name"], set()).add(r["column_name"])
+    except DBError:
+        pass
+    geo_cols = [c for c in ("country", "province", "city", "town")
+                if c in cols.get("geocoding_info", set())]
+    info = {
+        "user_info": "user_info" in cols,
+        # geocoding_info 可用：表存在且 unit 有外键列且有至少一个名称列
+        "geo": bool(geo_cols) and "id_geocoding" in cols.get("unit", set()),
+        "geo_cols": geo_cols,
+    }
+    _probe_cache[db] = info
+    return info
+
+
+def enumerate_units(db: str) -> list:
+    """返回 [{unit_id, filename, type, createtime, mtime, folder_name,
+    owner_id, owner_name, id_geocoding}]"""
+    info = _probe_schema(db)
+    owner_sel = ("COALESCE(ui.name, '') AS owner_name"
+                 if info["user_info"] else "'' AS owner_name")
+    owner_join = ("LEFT JOIN user_info ui ON ui.id = f.id_user"
+                  if info["user_info"] else "")
+    geo_sel = ("COALESCE(u.id_geocoding, 0) AS id_geocoding"
+               if info["geo"] else "0 AS id_geocoding")
+    sql = (f"SELECT u.id, u.filename, u.type, COALESCE(u.createtime, 0) AS "
+           f"createtime, COALESCE(u.mtime, 0) AS mtime, f.name AS folder_name, "
+           f"f.id_user AS owner_id, {owner_sel}, {geo_sel} "
+           f"FROM unit u JOIN folder f ON f.id = u.id_folder "
+           f"{owner_join} ORDER BY u.id")
+    rows = transport().query_json(db, sql)
     units = []
     for r in rows:
         try:
@@ -432,14 +431,53 @@ def enumerate_units(db: str, geocoding_lang: int = 0) -> list:
                 "folder_name": r["folder_name"] or "",
                 "owner_id": int(r["owner_id"] or 0),
                 "owner_name": r.get("owner_name") or "",
-                "geo_country": (r.get("geo_country") or "").strip(),
-                "geo_province": (r.get("geo_province") or "").strip(),
-                "geo_city": (r.get("geo_city") or "").strip(),
-                "geo_town": (r.get("geo_town") or "").strip(),
+                "id_geocoding": int(r.get("id_geocoding") or 0),
             })
         except (KeyError, TypeError, ValueError):
             continue
     return units
+
+
+def list_users(db: str) -> list:
+    """user_info 全表 [{id, name}]；表不存在时返回 []（个人空间库常见）。"""
+    if not _probe_schema(db)["user_info"]:
+        return []
+    try:
+        return [{"id": int(r["id"]), "name": r["name"] or ""}
+                for r in transport().query_json(db, "SELECT id, name FROM user_info")]
+    except (DBError, KeyError, TypeError, ValueError):
+        return []
+
+
+def fetch_geo_rows(db: str, ids: list) -> dict:
+    """批量取 geocoding_info 全部语言行：{id_geocoding: [{lang, country, ...}]}。
+
+    地点标签要"自动优选简体中文"，必须拿到所有 lang 的行在本地选择，
+    而不是在 SQL 里固定 lang=0（旧做法会让英文/繁体混入标签）。
+    """
+    info = _probe_schema(db)
+    ids = sorted({int(i) for i in ids if i})
+    if not ids or not info["geo"]:
+        return {}
+    sel = ", ".join(["id_geocoding", "lang"] + info["geo_cols"])
+    out = {}
+    for i in range(0, len(ids), 500):
+        chunk = ",".join(map(str, ids[i:i + 500]))
+        try:
+            rows = transport().query_json(
+                db, f"SELECT {sel} FROM geocoding_info "
+                    f"WHERE id_geocoding IN ({chunk})")
+        except DBError:
+            continue
+        for r in rows:
+            try:
+                gid = int(r["id_geocoding"])
+                out.setdefault(gid, []).append(
+                    {"lang": int(r.get("lang") or 0),
+                     **{c: (r.get(c) or "") for c in info["geo_cols"]}})
+            except (KeyError, TypeError, ValueError):
+                continue
+    return out
 
 
 def list_databases() -> list:

@@ -70,6 +70,10 @@ def _get() -> sqlite3.Connection:
         os.makedirs(os.path.dirname(path), exist_ok=True)
         _conn = sqlite3.connect(path, check_same_thread=False)
         _conn.row_factory = sqlite3.Row
+        # WAL：写事务不阻塞读请求（网页 2s 轮询 /api/status 与扫描写库并发，
+        # 默认 journal 模式下写库期间前端会被整体堵死）
+        _conn.execute("PRAGMA journal_mode=WAL")
+        _conn.execute("PRAGMA busy_timeout=10000")
         _conn.executescript(SCHEMA)
         # 旧库迁移：补 engines 列
         cols = {r["name"] for r in _conn.execute("PRAGMA table_info(processed)")}

@@ -21,8 +21,12 @@ app/
   main.py               FastAPI：全部 HTTP 接口、静态页、缩略图、备份/还原的后台线程
   pipeline.py           核心：任务调度、扫描流程、断点续扫、批量写库、容错
   dbaccess.py           synofoto 库访问：SSH→psql（默认）/TCP 直连两种传输；
-                        全部 SQL 在这里生成（ENUM/写库/清理/备份还原）
-  matcher.py            文件系统↔数据库 路径匹配（最长后缀 + 所属用户消歧）
+                        全部 SQL 在这里生成（ENUM/写库/清理/备份还原）；
+                        表结构用 information_schema 探测（user_info/geocoding 有无）
+  geo.py                地点多语言解析：取 geocoding_info 全部 lang 行，
+                        按简/繁特征字优选简体中文，英文行进 normalized_name
+  matcher.py            文件系统↔数据库 路径匹配（最长后缀 + 所属用户消歧 +
+                        歧义键竞争路径按 owner 目录名再过滤）
   store.py              本地 SQLite（/config/tagger.db）：断点记账、写库台账、向量、日志
   config.py             /config/config.json 的默认值 + 深合并持久化
   vocab.json            CLIP 零样本词表（347 类 zh/en），用户可在网页编辑
@@ -54,9 +58,14 @@ clip/cnclip.onnx(中文CLIP ViT-L int8，**默认**，配 cnclip_tokenizer.json�
 - 用到的表（其余几十张表**永远不要碰**）：
   - `unit`：id, filename, type(0图/1视频), createtime, mtime, id_folder
   - `folder`：id, name(路径形态因版本而异！), id_user
-  - `user_info`：id, name（可能不存在，代码有降级 SQL `ENUM_SQL_NOUI`）
+  - `user_info`：id, name（个人空间库常缺！`pipeline._enumerate` 会先从所有
+    有该表的库汇总 id→name 全局用户表，给缺表的库按 owner_id / 库名后缀
+    `synofoto_personal_<N>` 回填 owner_name——这是跨用户同名文件路径消歧的前提）
   - `general_tag`：id, id_user, name, count, normalized_name
-  - `geocoding_info`：id_geocoding, lang, country/province/city/town（只读，供地点标签）
+  - `geocoding_info`：id_geocoding, lang, country/province/city/town（只读）。
+    每个 id_geocoding 有多行（不同 lang，英/简/繁混杂）；`geo.py` 取全部行后
+    按简/繁特征字优选简体中文行做标签名，英文行进 normalized_name 双语可搜；
+    `exif.geocoding_lang>0` 可强制指定 lang（默认 0=自动优选）
   - `many_unit_has_many_general_tag`：id_unit, id_general_tag
 - **连接方式（默认 ssh）**：容器经 SSH 到 NAS，以 `sudo -S -p '' -u postgres psql`
   执行（root 登录则 `sudo -n -u postgres`）。DSM 的 psql 路径不定，`_probe_bin`
@@ -96,8 +105,9 @@ clip/cnclip.onnx(中文CLIP ViT-L int8，**默认**，配 cnclip_tokenizer.json�
 9. **单引擎容错**：_analyze 内 detect/clip/ocr 各自 try/except，日志记
    "XX 引擎失败（跳过该引擎）"，不让一个引擎挂掉拖垮整图。
 10. **路径匹配不做绝对路径假设**：folder.name 形态随版本/空间类型变化。
-    matcher 用"最长后缀 (≤8 级) + owner_name/Photos 前缀候选"消歧；
-    跨用户同名目录（人人都有 MobileBackup）靠 owner 候选区分。
+    matcher 用"最长后缀 (≤10 级) + owner_name/Photos 前缀候选"消歧；
+    跨用户同名目录（人人都有 MobileBackup/iPhone）靠 owner 候选区分；
+    键仍歧义时再用歧义键记录的竞争路径按 owner 目录名过滤。
     歧义（match 返回 None）→ 记 error 跳过，绝不猜。
 11. **写库目标库选择**：标签 id_user=unit 的 owner_id；TCP/SSH 两模式
     代码路径一致，只换传输层。
@@ -107,7 +117,7 @@ clip/cnclip.onnx(中文CLIP ViT-L int8，**默认**，配 cnclip_tokenizer.json�
 | 想做什么 | 改哪里 |
 |---|---|
 | 加一个识别引擎 | `infer/` 新模块 → config.py 加开关 → pipeline._analyze 加分支(try/except+engines) → `_missing_engines`/`model_version` 纳入 → 前端设置页加控件 |
-| 引擎说明 | detect/clip/ocr 走像素解码；exif 只读元数据（日期取 unit.takentime、地点取 geocoding_info 只读联查、相机取 EXIF 头），only={"exif"} 补全时零图片 IO |
+| 引擎说明 | detect/clip/ocr 走像素解码；exif 只读元数据（日期取 createtime、地点取 geocoding_info 多语言行优选简体），only={"exif"} 补全时零图片 IO。相机型号标签已下线（2026-09，污染搜索建议） |
 | 历史照片补新引擎 | `_missing_engines` 规则：engines 键显式 False → 补；键不存在 → 仅 exif 视为待补（其他引擎视为旧版全成功），从而对存量照片做一次性轻量回填 |
 | 改写库 SQL | 只改 `dbaccess.py`（注意不变量 2/3/4） |
 | 加 Web 接口 | `main.py`；耗时操作必须用 `_bg_start` 后台线程 + `/api/bg/status` 轮询（模式照抄 backup/dbtest/restore），**别在 async 路由里同步长跑**（会卡死页面） |
@@ -131,7 +141,7 @@ status/stats/stale) · `GET|POST /api/config` · `POST /api/job`
 - `python tests/e2e_test.py`：**FakeTransport 模拟群晖库**（关键模式！
   所有管道回归都基于它，不碰真库），覆盖 扫描→断点→写库故障→补写→
   单引擎补全→语义搜索→API。
-- 多用户消歧、清理脚本、匹配器都有独立单测片段（见对话历史/可重写）：
+- 多用户消歧、写库清理语义、匹配器由 e2e 及独立单测片段覆盖：
   核心断言是"created 行整删、reused 行只删自己的关联对"。
 - 改完务必跑 e2e；涉及 SQL 的改动另写脚本级断言（看生成的 SQL 文本）。
 
