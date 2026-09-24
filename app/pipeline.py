@@ -51,6 +51,35 @@ def _missing_engines(st: dict, cfg: dict) -> list:
     return missing
 
 
+_SEASONS = ("春季", "夏季", "秋季", "冬季")   # 3~5 春 / 6~8 夏 / 9~11 秋 / 12~2 冬
+_RE_YEAR = re.compile(r"^\d+年$")
+_RE_MONTH = re.compile(r"^\d{1,2}月$")
+_RE_SEASON = re.compile(r"^[春夏秋冬]季$")
+
+
+def _is_date_tag(name: str) -> bool:
+    return bool(_RE_YEAR.match(name) or _RE_MONTH.match(name)
+                or _RE_SEASON.match(name))
+
+
+def _date_tag_names(u: dict) -> list:
+    """该 unit 应有的日期标签 [年, 月, 季]。
+
+    取自真实拍摄时间：unit.takentime（EXIF 导入，秒/毫秒随版本）优先，
+    退回 createtime（文件落盘时间）；非法年份（1970~2100 之外）丢弃。
+    """
+    ts = int(u.get("takentime") or 0) or int(u.get("createtime") or 0)
+    while ts > 100_000_000_000:    # 毫秒/微秒时间戳（群晖部分版本）→ 秒
+        ts //= 1000
+    if ts <= 0:
+        return []
+    lt = time.localtime(ts)
+    if not (1970 <= lt.tm_year <= 2100):
+        return []
+    return [f"{lt.tm_year}年", f"{lt.tm_mon}月",
+            _SEASONS[((lt.tm_mon - 3) % 12) // 3]]
+
+
 def _exif_tags(u: dict, cfg: dict, tags: list) -> None:
     """从拍摄时间与群晖地理编码数据生成元数据标签，追加到 tags。
 
@@ -66,18 +95,9 @@ def _exif_tags(u: dict, cfg: dict, tags: list) -> None:
             names.add(name)
             tags.append((name, (nn or name).lower(), None))
 
-    ts = int(u.get("takentime") or 0) or int(u.get("createtime") or 0)
-    while ts > 100_000_000_000:    # 毫秒/微秒时间戳（群晖部分版本）→ 秒
-        ts //= 1000
-    if exif_cfg.get("date_tags", True) and ts > 0:
-        lt = time.localtime(ts)
-        if not (1970 <= lt.tm_year <= 2100):
-            lt = None
-    if exif_cfg.get("date_tags", True) and lt is not None:
-        add(f"{lt.tm_year}年")
-        add(f"{lt.tm_mon}月")
-        # 3~5 春季 / 6~8 夏季 / 9~11 秋季 / 12~2 冬季
-        add(("春季", "夏季", "秋季", "冬季")[((lt.tm_mon - 3) % 12) // 3])
+    if exif_cfg.get("date_tags", True):
+        for name in _date_tag_names(u):
+            add(name)
     if exif_cfg.get("location_tags", True):
         zh = u.get("geo_zh") or {}
         en = u.get("geo_en") or {}
@@ -380,8 +400,9 @@ class Pipeline:
                                            only=set(missing) if missing else None,
                                            unit=u)
                     if missing:
-                        # 单引擎补全：合并旧标签，只把新增部分送去写库
-                        result = self._merge_backfill(db, u["unit_id"], result,
+                        # 单引擎补全：合并旧标签，只把新增部分送去写库；
+                        # exif 补全还会触发日期标签收敛（摘除过期日期关联）
+                        result = self._merge_backfill(db, u, result,
                                                       missing, model_ver, cfg)
                     self._record(db, u["unit_id"], result["status"], model_ver,
                                  result["tags"], result["ocr_text"], path,
@@ -392,12 +413,15 @@ class Pipeline:
                                               if cfg["clip"]["enabled"] and
                                               result.get("embed") is not None
                                               else None))
-                    if result["tags"] and result["status"] == "analyzed":
+                    if result["status"] == "analyzed" and \
+                            (result["tags"] or result.get("_date_remove")):
                         batch.append({"db": db, "unit_id": u["unit_id"],
                                       "owner_id": (cfg["db"].get("force_tag_owner_id")
                                                    if cfg["db"].get("force_tag_owner_id") is not None
                                                    else u["owner_id"]),
-                                      "tags": result["tags"]})
+                                      "tags": result["tags"],
+                                      "date_remove": result.get("_date_remove")
+                                      or []})
                     job.done += 1
                 except Exception as e:
                     store.log("error", f"分析失败 {rel}: {e}")
@@ -527,24 +551,45 @@ class Pipeline:
         return {"status": "analyzed" if tags else "empty", "tags": tags,
                 "ocr_text": ocr_text, "embed": embed, "engines": engines}
 
-    def _merge_backfill(self, db: str, unit_id: int, result: dict,
+    def _merge_backfill(self, db: str, u: dict, result: dict,
                         missing: list, model_ver: str, cfg: dict = None) -> dict:
         """单引擎补全：把新跑出的标签合并进已有结果。
 
         - 有新增标签：status=analyzed（连同合并后的完整标签列表写库），
           写库脚本的 NOT EXISTS 保护保证旧关联不会重复插入
-        - 无新增（引擎恢复但没识别出东西）：保持原状态，只更新 engines 记录
+        - 日期标签收敛：exif 补全成功时，剔除与最新拍摄时间（takentime
+          优先）不符的旧年/月/季标签，其 (unit,tag) 关联随本批写库摘除
+          （连带台账外的历史幽灵关联；只认 tag_defs 台账里的行）
+        - 无新增且无收敛（引擎恢复但没识别出东西）：保持原状态，只更新 engines
         """
+        cfg = cfg or config.load()
+        uid = u["unit_id"]
         row = store.query_one(
             "SELECT status, tags, ocr_text, engines FROM processed "
-            "WHERE db_name=? AND unit_id=?", (db, unit_id))
+            "WHERE db_name=? AND unit_id=?", (db, uid))
         old_tags = [(t["n"], t["nn"], t.get("s"))
                     for t in json.loads((row and row["tags"]) or "[]")]
         old_ocr = (row and row["ocr_text"]) or ""
+        removals = []          # [(tag_row_id, created)] 待摘除的过期日期标签行
+        if ("exif" in (missing or ()) and result.get("engines", {}).get("exif")
+                and cfg.get("exif", {}).get("date_tags", True)):
+            correct = set(_date_tag_names(u))
+            stale = {t[0] for t in old_tags
+                     if _is_date_tag(t[0]) and t[0] not in correct}
+            if stale:
+                old_tags = [t for t in old_tags if t[0] not in stale]
+                for r in store.query(
+                        "SELECT d.tag_row_id AS rid, d.name AS name, "
+                        "d.created AS c FROM tag_rows tr JOIN tag_defs d "
+                        "ON d.db_name=tr.db_name AND d.tag_row_id=tr.tag_row_id "
+                        "WHERE tr.db_name=? AND tr.unit_id=?", (db, uid)):
+                    if r["name"] in stale:
+                        removals.append((int(r["rid"]), int(r["c"])))
+                store.log("info", f"日期标签收敛 {db}#{uid}: "
+                                  f"摘除 {', '.join(sorted(stale))}")
         merged = old_tags + [t for t in result["tags"]
                              if t[0] not in {x[0] for x in old_tags}]
-        cap = (cfg or config.load()).get("tagging", {}).get(
-            "max_tags_per_photo", 15)
+        cap = cfg.get("tagging", {}).get("max_tags_per_photo", 15)
         merged = merged[:cap]
         engines = {}
         try:
@@ -555,11 +600,15 @@ class Pipeline:
         result["engines"] = engines
         result["ocr_text"] = result["ocr_text"] or old_ocr
         added = len(merged) - len(old_tags)
-        if added > 0:
+        if added > 0 or removals:
             result["tags"] = merged
+            # 可能 merged 已空但仍有待摘除关联：仍走写库批次执行收敛
             result["status"] = "analyzed"
-            store.log("info", f"单引擎补全 {db}#{unit_id}: "
-                              f"{'/'.join(missing)} 新增 {added} 个标签")
+            if removals:
+                result["_date_remove"] = removals
+            if added > 0:
+                store.log("info", f"单引擎补全 {db}#{uid}: "
+                                  f"{'/'.join(missing)} 新增 {added} 个标签")
         else:
             # 没有新标签：保持 written/empty，避免整标签列表重写
             done_all = not _missing_engines({"engines": json.dumps(engines)},
@@ -601,49 +650,74 @@ class Pipeline:
         for db, items in by_db.items():
             try:
                 _t0 = time.time()
-                # 1) 先查哪些标签行已存在（用户手工建过的 → 复用，不新建）
-                out = dbaccess.transport().exec_script(
-                    db, dbaccess.build_existing_tags_script(items))
-                _t1 = time.time()
-                existing = {(owner, name): rid
-                            for rid, owner, name in dbaccess.parse_tag_rows(out)}
-                # 2) 补建缺失标签 + 建立关联 + 修正 count
-                out = dbaccess.transport().exec_script(
-                    db, dbaccess.build_write_script(items))
-                _t2 = time.time()
-                rows = dbaccess.parse_tag_rows(out)
-                store.log("info", f"{db}: 写库脚本执行完成（"
-                                  f"{_t2 - _t1:.2f}s），返回 {len(rows)} 行标签记录")
-                rows_map = {(owner, name): (rid, owner, name)
-                            for rid, owner, name in rows}
-                expected = {(it["owner_id"] or 0, name)
-                            for it in items for name, _nn, _s in it["tags"]}
-                missing = expected - set(rows_map)
-                if missing:
-                    sample = ", ".join(f"{owner}:{name}"
-                                       for owner, name in sorted(missing)[:5])
-                    raise dbaccess.DBError(
-                        f"写库后未能确认 {len(missing)} 个标签行: {sample}")
+                # 0) 日期标签收敛：摘除与最新拍摄时间不符的年/月/季关联
+                #    （连带台账外幽灵关联；只认 tag_defs 台账行，
+                #    复用行只摘关联修正 count，行本身不删）
+                rm_pairs, rm_created = [], set()
                 for it in items:
-                    unit_rows = []
-                    for name, nn, _s in it["tags"]:
-                        key = (it["owner_id"] or 0, name)
-                        if key in rows_map:
-                            rid, owner, nm = rows_map[key]
-                            # 不在 existing 里 = 本工具新建的行
-                            unit_rows.append((rid, name, owner,
-                                              key not in existing))
-                    if unit_rows:
-                        store.record_writes(db, it["unit_id"], unit_rows)
+                    for rid, created in (it.get("date_remove") or []):
+                        rm_pairs.append((it["unit_id"], rid))
+                        if created:
+                            rm_created.add(rid)
+                if rm_pairs:
+                    out = dbaccess.transport().exec_script(
+                        db, dbaccess.build_date_removal_script(
+                            rm_pairs, sorted(rm_created)))
+                    deleted = dbaccess.parse_id_list(out)
+                    store.remove_tag_rows(db, rm_pairs)
+                    if deleted:
+                        store.remove_tag_defs(db, deleted)
+                    store.log("info", f"{db}: 日期标签收敛：摘除过期关联 "
+                                      f"{len(rm_pairs)} 条，清理空置自建标签行 "
+                                      f"{len(deleted)} 个")
+                witems = [it for it in items if it["tags"]]
+                rows_map, existing = {}, set()
+                _t1 = _t2 = time.time()
+                if witems:
+                    # 1) 先查哪些标签行已存在（用户手工建过的 → 复用，不新建）
+                    out = dbaccess.transport().exec_script(
+                        db, dbaccess.build_existing_tags_script(witems))
+                    _t1 = time.time()
+                    existing = {(owner, name): rid
+                                for rid, owner, name in dbaccess.parse_tag_rows(out)}
+                    # 2) 补建缺失标签 + 建立关联 + 修正 count
+                    out = dbaccess.transport().exec_script(
+                        db, dbaccess.build_write_script(witems))
+                    _t2 = time.time()
+                    rows = dbaccess.parse_tag_rows(out)
+                    store.log("info", f"{db}: 写库脚本执行完成（"
+                                      f"{_t2 - _t1:.2f}s），返回 {len(rows)} 行标签记录")
+                    rows_map = {(owner, name): (rid, owner, name)
+                                for rid, owner, name in rows}
+                    expected = {(it["owner_id"] or 0, name)
+                                for it in witems for name, _nn, _s in it["tags"]}
+                    missing = expected - set(rows_map)
+                    if missing:
+                        sample = ", ".join(f"{owner}:{name}"
+                                           for owner, name in sorted(missing)[:5])
+                        raise dbaccess.DBError(
+                            f"写库后未能确认 {len(missing)} 个标签行: {sample}")
+                    for it in witems:
+                        unit_rows = []
+                        for name, nn, _s in it["tags"]:
+                            key = (it["owner_id"] or 0, name)
+                            if key in rows_map:
+                                rid, owner, nm = rows_map[key]
+                                # 不在 existing 里 = 本工具新建的行
+                                unit_rows.append((rid, name, owner,
+                                                  key not in existing))
+                        if unit_rows:
+                            store.record_writes(db, it["unit_id"], unit_rows)
                 for it in items:
                     store.mark_processed(
-                        it["db"], it["unit_id"], "written", model_version(cfg),
-                        [{"n": n, "nn": nn, "s": s} for n, nn, s in it["tags"]], None, None,
-                        owner_id=it["owner_id"])
-                job.tags_written += sum(len(i["tags"]) for i in items)
+                        it["db"], it["unit_id"],
+                        "written" if it["tags"] else "empty", model_version(cfg),
+                        [{"n": n, "nn": nn, "s": s} for n, nn, s in it["tags"]],
+                        None, None, owner_id=it["owner_id"])
+                job.tags_written += sum(len(i["tags"]) for i in witems)
                 reused = sum(1 for k in rows_map if k in existing)
                 store.log("info", f"{db}: 写入 {len(items)} 项标签成功"
-                                  f"（新建标签行 {len(rows) - reused}，"
+                                  f"（新建标签行 {len(rows_map) - reused}，"
                                   f"复用已有 {reused}，"
                                   f"查重 {_t1 - _t0:.2f}s，"
                                   f"写库+计数 {_t2 - _t1:.2f}s）")

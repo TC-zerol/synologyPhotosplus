@@ -49,8 +49,8 @@ GEO_ROWS = [
 ]
 
 _SCHEMA_COLS = {
-    "unit": ["id", "filename", "type", "createtime", "mtime", "id_folder",
-             "id_geocoding"],
+    "unit": ["id", "filename", "type", "createtime", "takentime", "mtime",
+             "id_folder", "id_geocoding"],
     "folder": ["id", "name", "id_user"],
     "user_info": ["id", "name"],
     "geocoding_info": ["id_geocoding", "lang", "country", "province", "city",
@@ -77,7 +77,8 @@ class FakeTransport:
             return GEO_ROWS
         if "FROM unit" in sql:
             return [{"id": u["unit_id"], "filename": u["filename"], "type": u["type"],
-                     "createtime": u["createtime"], "mtime": u["mtime"],
+                     "createtime": u["createtime"], "takentime": u.get("takentime", 0),
+                     "mtime": u["mtime"],
                      "folder_name": u["folder_name"], "owner_id": u["owner_id"],
                      "owner_name": u["owner_name"],
                      "id_geocoding": u.get("id_geocoding", 0)} for u in UNITS]
@@ -87,6 +88,11 @@ class FakeTransport:
         self.scripts.append(script)
         if self.fail_write and "INSERT INTO many" in script:
             raise Exception("simulated db down")
+        if "WITH del AS" in script:
+            # 模拟"自建空行整删"：关联已在同脚本删除，候选 id 全部返回
+            # （匹配带 NOT EXISTS 守卫的那条，别误取前面 count 重算的 id 列表）
+            m = re.search(r"g\.id IN \(([\d,]+)\) AND NOT EXISTS", script)
+            return "[" + m.group(1) + "]" if m else "[]"
         if "INSERT INTO general_tag" not in script:
             return "[]"
         names = []
@@ -243,6 +249,20 @@ assert {"深圳市", "广东省", "中国", "2023年", "11月", "秋季"} <= _na
 _nn = {t[0]: t[1] for t in _tags}
 assert _nn["深圳市"] == "深圳市 shenzhen", _nn["深圳市"]
 print("   OK:", sorted(_names))
+# takentime（真实拍摄时间，秒）优先于 createtime（文件落盘时间，毫秒）
+_t2 = []
+_exif_tags({"takentime": 1484236514, "createtime": 1668872800367},
+           config.load(), _t2)
+assert {t[0] for t in _t2} == {"2017年", "1月", "冬季"}, _t2
+# 无 takentime 时回退 createtime（毫秒自动归一为秒）
+_t3 = []
+_exif_tags({"createtime": 1668872800367}, config.load(), _t3)
+assert {t[0] for t in _t3} == {"2022年", "11月", "秋季"}, _t3
+# 完全无有效时间：不产出日期标签（旧代码此处 lt 未定义会 NameError）
+_t4 = []
+_exif_tags({}, config.load(), _t4)
+assert _t4 == [], _t4
+print("   takentime 优先 / 毫秒回退 / 无时间 三种场景 OK")
 
 print("⑩ 个人空间库缺 user_info 时 owner_name 全局回填")
 import app.geo as geo_mod  # noqa: E402
@@ -265,6 +285,52 @@ finally:
     (dbaccess.list_databases, dbaccess.list_users,
      dbaccess.enumerate_units, geo_mod.attach_geo) = _orig
 
+
+print("11) 日期标签收敛：takentime 纠偏时摘除过期日期标签")
+# 场景：unit1 曾按错误的 createtime 被写入 2022年/11月/秋季（台账+标签），
+# takentime 修复后 exif 补全（零 IO）应写入 1970年/1月/冬季 并摘除旧日期关联
+store.execute("UPDATE processed SET status='written', "
+              "tags='[{\"n\": \"2022年\", \"nn\": \"2022年\"}, "
+              "{\"n\": \"11月\", \"nn\": \"11月\"}, {\"n\": \"秋季\", \"nn\": \"秋季\"}, "
+              "{\"n\": \"猫\", \"nn\": \"cat 猫\"}]', "
+              "engines='{\"detect\": true, \"clip\": true, \"ocr\": true, "
+              "\"exif\": false}' WHERE db_name='synofoto' AND unit_id=1")
+store.record_writes("synofoto", 1, [(9001, "2022年", 1, True),
+                                    (9002, "11月", 1, False),
+                                    (9003, "秋季", 1, True),
+                                    (9004, "猫", 1, False)])
+_ns = len(fake.scripts)
+last = run_and_wait("incremental")
+assert last["errors"] == 0, str(last)
+_new = fake.scripts[_ns:]
+_rm = [s for s in _new if "DELETE FROM many_unit_has_many_general_tag" in s
+       and "IN (VALUES" in s]
+assert _rm, "未生成日期收敛删除脚本"
+assert all(f"(1::int, {r}::int)" in _rm[0] for r in (9001, 9002, 9003)), _rm[0]
+assert "9004" not in _rm[0]     # 非日期标签不动
+# 自建空行整删（9001/9003 created=1）；复用行 9002 只摘关联不删行
+_m = re.search(r"WHERE g\.id IN \(([\d,]+)\) AND NOT EXISTS", _rm[0])
+assert _m and set(_m.group(1).split(",")) == {"9001", "9003"}, _rm[0]
+# count 重算覆盖全部三个受影响行
+_m2 = re.search(r"UPDATE general_tag g SET count = .*?WHERE g\.id IN \(([\d,]+)\);",
+                _rm[0], re.S)
+assert _m2 and set(_m2.group(1).split(",")) == {"9001", "9002", "9003"}, _rm[0]
+# 新日期标签随本批写库写入（NOT EXISTS 防重）
+_wr = [s for s in _new if "INSERT INTO general_tag" in s]
+assert _wr and "1970年" in _wr[-1] and "冬季" in _wr[-1], _new
+# 本地台账同步：三对关联删除，两个自建行清除，复用行台账保留
+assert not store.query("SELECT * FROM tag_rows WHERE tag_row_id IN (9001,9002,9003)")
+assert not store.query("SELECT * FROM tag_defs WHERE tag_row_id IN (9001,9003)")
+assert store.query_one("SELECT * FROM tag_defs WHERE tag_row_id=9002"), "复用行台账应保留"
+# processed 标签收敛为 takentime 日期 + 保留非日期标签
+_t11 = {t["n"] for t in json.loads(store.query_one(
+    "SELECT tags FROM processed WHERE unit_id=1")["tags"])}
+assert {"1970年", "1月", "冬季", "猫"} <= _t11, _t11
+assert not ({"2022年", "11月", "秋季"} & _t11), _t11
+# 收敛完成后再次增量扫描：无残留工作
+last = run_and_wait("incremental")
+assert last["total"] == 0, str(last)
+print("   OK：过期日期关联摘除、自建空行整删、复用行保留、新日期写入")
 
 print()
 print("=== 全链路测试全部通过 ===")

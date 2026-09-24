@@ -399,14 +399,16 @@ def _probe_schema(db: str) -> dict:
         # geocoding_info 可用：表存在且 unit 有外键列且有至少一个名称列
         "geo": bool(geo_cols) and "id_geocoding" in cols.get("unit", set()),
         "geo_cols": geo_cols,
+        # 真实拍摄时间（EXIF 导入）：旧版 Photos 可能无此列，缺失时退回 createtime
+        "takentime": "takentime" in cols.get("unit", set()),
     }
     _probe_cache[db] = info
     return info
 
 
 def enumerate_units(db: str) -> list:
-    """返回 [{unit_id, filename, type, createtime, mtime, folder_name,
-    owner_id, owner_name, id_geocoding}]"""
+    """返回 [{unit_id, filename, type, takentime, createtime, mtime,
+    folder_name, owner_id, owner_name, id_geocoding}]"""
     info = _probe_schema(db)
     owner_sel = ("COALESCE(ui.name, '') AS owner_name"
                  if info["user_info"] else "'' AS owner_name")
@@ -414,8 +416,13 @@ def enumerate_units(db: str) -> list:
                   if info["user_info"] else "")
     geo_sel = ("COALESCE(u.id_geocoding, 0) AS id_geocoding"
                if info["geo"] else "0 AS id_geocoding")
-    sql = (f"SELECT u.id, u.filename, u.type, COALESCE(u.createtime, 0) AS "
-           f"createtime, COALESCE(u.mtime, 0) AS mtime, f.name AS folder_name, "
+    # takentime=真实拍摄时间（秒/毫秒随版本），createtime=文件落盘时间。
+    # 日期标签必须优先 takentime，否则导入时间晚的照片全部贴错日期。
+    taken_sel = ("COALESCE(u.takentime, 0) AS takentime"
+                 if info["takentime"] else "0 AS takentime")
+    sql = (f"SELECT u.id, u.filename, u.type, {taken_sel}, "
+           f"COALESCE(u.createtime, 0) AS createtime, "
+           f"COALESCE(u.mtime, 0) AS mtime, f.name AS folder_name, "
            f"f.id_user AS owner_id, {owner_sel}, {geo_sel} "
            f"FROM unit u JOIN folder f ON f.id = u.id_folder "
            f"{owner_join} ORDER BY u.id")
@@ -426,6 +433,7 @@ def enumerate_units(db: str) -> list:
             units.append({
                 "unit_id": int(r["id"]), "filename": r["filename"],
                 "type": int(r["type"] or 0),
+                "takentime": int(r.get("takentime") or 0),
                 "createtime": int(r["createtime"] or 0),
                 "mtime": int(r["mtime"] or 0),
                 "folder_name": r["folder_name"] or "",
@@ -639,3 +647,50 @@ def build_cleanup_script(db: str) -> str:
         lines.append(f"DELETE FROM general_tag WHERE id IN ({ids});")
     lines.append("COMMIT;")
     return "\n".join(lines) if len(lines) > 2 else None
+
+
+def build_date_removal_script(pairs: list, created_ids: list) -> str:
+    """日期标签收敛：摘除 (unit, 过期日期标签行) 关联并重算 count。
+
+    - 关联按 (id_unit, id_general_tag) 精确删除：台账外的历史遗留关联
+      （幽灵关联）只要指向台账已知的日期标签行，一并摘除
+    - created_ids 中本工具自建的行：无剩余关联时整行删除；**复用行
+      （created=0，含用户手工建的同名标签）永不删行**，只修正 count
+    - 最后的 SELECT 返回实际被整删的行 id（供本地台账同步）
+    """
+    vals = ", ".join(f"({u}::int, {t}::int)" for u, t in sorted(set(pairs)))
+    ids = ",".join(str(t) for t in sorted({t for _u, t in pairs}))
+    lines = ["BEGIN;",
+             "DELETE FROM many_unit_has_many_general_tag m "
+             f"WHERE (m.id_unit, m.id_general_tag) IN (VALUES {vals});",
+             "UPDATE general_tag g SET count = "
+             "(SELECT COUNT(*) FROM many_unit_has_many_general_tag m "
+             "WHERE m.id_general_tag = g.id) "
+             f"WHERE g.id IN ({ids});",
+             "COMMIT;"]
+    # SELECT 必须是最后一个语句（psycopg2 只返回最后一个结果集），
+    # 因此整行删除放在 COMMIT 后自提交执行；NOT EXISTS 守卫保证幂等。
+    if created_ids:
+        cids = ",".join(str(t) for t in sorted(set(created_ids)))
+        lines.append(
+            "WITH del AS (DELETE FROM general_tag g "
+            f"WHERE g.id IN ({cids}) AND NOT EXISTS "
+            "(SELECT 1 FROM many_unit_has_many_general_tag m "
+            "WHERE m.id_general_tag = g.id) RETURNING g.id) "
+            "SELECT COALESCE(json_agg(id)::text, '[]') FROM del;")
+    else:
+        lines.append("SELECT '[]'::text;")
+    return "\n".join(lines)
+
+
+def parse_id_list(output: str) -> list:
+    """解析 SELECT json_agg(id) 返回的 id 数组 [int]。"""
+    for line in reversed(output.strip().splitlines()):
+        line = line.strip()
+        if not line.startswith("["):
+            continue
+        try:
+            return [int(x) for x in json.loads(line)]
+        except (json.JSONDecodeError, ValueError, TypeError):
+            continue
+    return []

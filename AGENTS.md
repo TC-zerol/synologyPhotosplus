@@ -56,7 +56,10 @@ clip/cnclip.onnx(中文CLIP ViT-L int8，**默认**，配 cnclip_tokenizer.json�
 - 库名：`synofoto`（团队空间）+ `synofoto_personal_<N>`（每个用户的个人空间）。
   `SELECT datname FROM pg_database WHERE datname LIKE 'synofoto%'` 枚举。
 - 用到的表（其余几十张表**永远不要碰**）：
-  - `unit`：id, filename, type(0图/1视频), createtime, mtime, id_folder
+  - `unit`：id, filename, type(0图/1视频), takentime(**真实拍摄时间**，EXIF
+    导入；秒/毫秒随版本，代码自动归一；旧版可能缺列，`_probe_schema` 探测，
+    缺失退回 createtime), createtime(文件**落盘**时间，勿用于日期标签),
+    mtime, id_folder
   - `folder`：id, name(路径形态因版本而异！), id_user
   - `user_info`：id, name（个人空间库常缺！`pipeline._enumerate` 会先从所有
     有该表的库汇总 id→name 全局用户表，给缺表的库按 owner_id / 库名后缀
@@ -111,13 +114,20 @@ clip/cnclip.onnx(中文CLIP ViT-L int8，**默认**，配 cnclip_tokenizer.json�
     歧义（match 返回 None）→ 记 error 跳过，绝不猜。
 11. **写库目标库选择**：标签 id_user=unit 的 owner_id；TCP/SSH 两模式
     代码路径一致，只换传输层。
+12. **日期标签收敛**：年/月/季标签是拍摄时间的纯函数。exif 引擎补全成功时
+    （`_merge_backfill`），与最新 takentime 不符的旧日期标签从合并结果剔除，
+    其 (unit,tag) 关联随本批写库摘除（`dbaccess.build_date_removal_script`：
+    连带台账外幽灵关联——按 (id_unit,id_general_tag) 精确删；自建空行带
+    NOT EXISTS 守卫整删；**复用行只摘关联修正 count，行不删**）。
+    一次性纠偏存量：把 processed 的 engines.exif 置 False → 下次增量扫描
+    零 IO 重跑 exif 即自动收敛（2026-09 修复：日期曾误用 createtime 落盘时间）。
 
 ## 5. 常见修改的落点
 
 | 想做什么 | 改哪里 |
 |---|---|
 | 加一个识别引擎 | `infer/` 新模块 → config.py 加开关 → pipeline._analyze 加分支(try/except+engines) → `_missing_engines`/`model_version` 纳入 → 前端设置页加控件 |
-| 引擎说明 | detect/clip/ocr 走像素解码；exif 只读元数据（日期取 createtime、地点取 geocoding_info 多语言行优选简体），only={"exif"} 补全时零图片 IO。相机型号标签已下线（2026-09，污染搜索建议） |
+| 引擎说明 | detect/clip/ocr 走像素解码；exif 只读元数据（日期取 takentime 优先/退回 createtime、地点取 geocoding_info 多语言行优选简体），only={"exif"} 补全时零图片 IO。相机型号标签已下线（2026-09，污染搜索建议） |
 | 历史照片补新引擎 | `_missing_engines` 规则：engines 键显式 False → 补；键不存在 → 仅 exif 视为待补（其他引擎视为旧版全成功），从而对存量照片做一次性轻量回填 |
 | 改写库 SQL | 只改 `dbaccess.py`（注意不变量 2/3/4） |
 | 加 Web 接口 | `main.py`；耗时操作必须用 `_bg_start` 后台线程 + `/api/bg/status` 轮询（模式照抄 backup/dbtest/restore），**别在 async 路由里同步长跑**（会卡死页面） |

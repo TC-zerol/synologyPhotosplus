@@ -239,6 +239,20 @@ def record_writes(db_name: str, unit_id: int, rows):
                 "VALUES (?,?,?)", (db_name, unit_id, row_id))
 
 
+def remove_tag_rows(db_name: str, pairs) -> None:
+    """删除台账中的 (unit_id, tag_row_id) 关联记录（日期标签收敛用）。"""
+    for uid, rid in pairs:
+        execute("DELETE FROM tag_rows WHERE db_name=? AND unit_id=? "
+                "AND tag_row_id=?", (db_name, uid, rid))
+
+
+def remove_tag_defs(db_name: str, row_ids) -> None:
+    """删除台账中的标签行记录（synofoto 侧已整行删除的自建行）。"""
+    for rid in row_ids:
+        execute("DELETE FROM tag_defs WHERE db_name=? AND tag_row_id=?",
+                (db_name, rid))
+
+
 def our_tag_rows(db_name: str) -> list:
     return query("SELECT tag_row_id FROM tag_defs WHERE db_name=?", (db_name,))
 
