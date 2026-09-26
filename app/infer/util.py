@@ -27,11 +27,16 @@ RAW_EXTS = {".arw", ".cr2", ".cr3", ".nef", ".nrw", ".raf", ".orf",
             ".rw2", ".dng", ".pef", ".srw"}
 
 
-def find_ea_thumb(photo_path: str) -> str:
-    """查找群晖 Photos 为该照片生成的缩略图（@eaDir/<名>/SYOPHOTO_THM*）。
+# 群晖缩略图命名实测（DSM7/Photos）：@eaDir/<文件名>/SYNOPHOTO_THUMB_{XL,M,SM}.jpg
+# 旧版 Photo Station 也有 SYOPHOTO_THM_* 变体——两种前缀都接受
+_THUMB_PREFIXES = ("SYNOPHOTO_THUMB", "SYOPHOTO_THM", "SYNOPHOTO_THM")
 
-    这是 Synology Photos 自己的缓存，不新建任何文件。命名有历史变体
-    （SYOPHOTO_THM_M/L/S、含 bate 后缀等），取其中最大的那张。
+
+def find_ea_thumb(photo_path: str) -> str:
+    """查找群晖 Photos 为该照片生成的缩略图（@eaDir/<名>/SYNOPHOTO_THUMB_*）。
+
+    Synology Photos 自己的缓存，不新建任何文件。兼容新旧命名变体，
+    取其中最大（最清晰）的一张。
     """
     d = os.path.dirname(photo_path)
     ea = os.path.join(d, "@eaDir", os.path.basename(photo_path))
@@ -39,7 +44,8 @@ def find_ea_thumb(photo_path: str) -> str:
         return ""
     best, best_size = "", -1
     for fn in os.listdir(ea):
-        if not fn.upper().startswith("SYOPHOTO_THM"):
+        up = fn.upper()
+        if not any(up.startswith(p) for p in _THUMB_PREFIXES):
             continue
         if not fn.lower().endswith((".jpg", ".jpeg", ".png")):
             continue
