@@ -509,17 +509,20 @@ async def serve_file(path: str):
     cand = os.path.abspath(path.replace("\\", "/"))
     if not os.path.basename(cand).startswith(".") and \
             any(cand == r or cand.startswith(r + os.sep) for r in mounts):
-        resp = _try(cand)
-        if resp:
-            return resp
         ext_low = os.path.splitext(cand)[1].lower()
-        if resp is None and (ext_low in util.RAW_EXTS
-                             or ext_low in (".heic", ".heif", ".tif", ".tiff",
-                                            ".avif")):
-            # 浏览器无法直接显示的格式：回源群晖在 @eaDir 生成的缩略图
+        # 浏览器无法直接显示的格式（RAW/HEIC/TIFF/AVIF）：
+        # 即使原文件存在也优先回源群晖在 @eaDir 生成的缩略图，
+        # 缩略图不存在才退回原文件（浏览器至少能下载）
+        if ext_low in util.RAW_EXTS or ext_low in (
+                ".heic", ".heif", ".tif", ".tiff", ".avif"):
             ea_thumb = util.find_ea_thumb(cand)
             if ea_thumb:
                 resp = _try(ea_thumb)
+                if resp:
+                    return resp
+        resp = _try(cand)
+        if resp:
+            return resp
 
     # 2) 相对路径直拼
     rel = os.path.normpath(path.lstrip("/").replace("\\", "/"))
